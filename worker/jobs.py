@@ -1,17 +1,20 @@
 from app.supabase_client import supabase
 
+def update(job_id, status, output_url=None):
 
-from app.supabase_client import supabase
-
-def update(job_id: str, status: str, output_url: str = None):
     payload = {
         "status": status
     }
 
-    if output_url:
+    if output_url is not None:
         payload["output_url"] = output_url
 
-    res = supabase.table("jobs").update(payload).eq("id", job_id).execute()
+    res = supabase.table("jobs") \
+        .update(payload) \
+        .eq("id", job_id) \
+        .execute()
 
-    print(f"[JOBS UPDATE] {job_id} -> {payload}")
+    print("[JOBS UPDATE]", job_id, "->", payload)
+    print("[JOBS UPDATE RESPONSE]", res)
+
     return res

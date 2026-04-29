@@ -62,17 +62,20 @@ def process(job):
         # -------------------------
         final_storage = f"{job_id}.mp4"
 
-        log("Uploading final file...")
+        print("[WORKER] Uploading final file...")
+
         with open(output_path, "rb") as f:
-            upload(final_storage, f)
+            res = upload(final_storage, f)
+
+        print("[WORKER] Upload response:", res)
 
         url = public_url(final_storage)
 
-        log(f"Public URL: {url}")
+        print("[WORKER] Generated public URL:", url)
 
         update(job_id, "done", url)
 
-        log(f"DONE job={job_id}")
+        print("[WORKER] DONE:", job_id)
 
     except Exception as e:
         log("WORKER ERROR:")
