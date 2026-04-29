@@ -1,8 +1,8 @@
 import subprocess
 
-THRESHOLD = -30      # moins strict
-MIN_SILENCE = 0.4    # ignore micro pauses
-PADDING = 0.35       # respire un peu
+THRESHOLD = -40
+MIN_SILENCE = 0.5
+PADDING = 0.3
 
 
 def get_video_duration(path: str) -> float:
@@ -37,6 +37,8 @@ def detect_silences(path: str):
     )
 
     silences = []
+    print(f"[DEBUG] silences: {silences}")
+
     start = None
 
     for line in proc.stderr.split("\n"):
@@ -50,25 +52,33 @@ def detect_silences(path: str):
     return silences
 
 
-def build_segments(duration, silences):
-    if not silences:
-        return [(0, duration)]
+def build_segments(duration, silences, padding=0.3):
 
     segments = []
-    prev_end = 0
+    last_end = 0.0
 
-    for start, end in silences:
+    for silence_start, silence_end in silences:
 
-        seg_start = max(prev_end, 0)
-        seg_end = max(start - PADDING, seg_start)
+        seg_start = last_end
+        seg_end = silence_start
 
-        # 🔴 évite segments trop courts (cause #1 des freezes)
-        if seg_end - seg_start > 0.6:
+        # ajoute padding
+        seg_start = max(0, seg_start - padding)
+        seg_end = min(duration, seg_end + padding)
+
+        if seg_end - seg_start > 0.8:  # 🔴 important
             segments.append((seg_start, seg_end))
 
-        prev_end = end + PADDING
+        last_end = silence_end
 
-    if duration - prev_end > 0.3:
-        segments.append((prev_end, duration))
+    # dernier segment après le dernier silence
+    if last_end < duration:
+        seg_start = max(0, last_end - padding)
+        seg_end = duration
+
+        if seg_end - seg_start > 0.8:
+            segments.append((seg_start, seg_end))
+
+    print(f"[DEBUG] segments: {segments}")
 
     return segments
