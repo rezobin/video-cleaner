@@ -17,7 +17,7 @@ def extract_audio(input_path, output_path):
     ], check=True)
 
 
-def detect_silence_segments(audio_path):
+def detect_silences(audio_path):
 
     cmd = [
         "ffmpeg",
