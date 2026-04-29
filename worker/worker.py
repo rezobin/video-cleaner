@@ -16,8 +16,6 @@ def process(job):
     temp_files = []
 
     try:
-        update(job_id, "processing")
-
         cleaned_files = []
 
         # -------------------------
@@ -28,6 +26,9 @@ def process(job):
             print(f"[WORKER] Downloading file {i}: {path}")
 
             raw = download(path)
+
+            if raw is None:
+                raise Exception("Download failed")
 
             raw_path = f"/tmp/{job_id}_{i}_raw.mp4"
             clean_path = f"/tmp/{job_id}_{i}_clean.mp4"
@@ -102,7 +103,6 @@ def process(job):
         update(job_id, "failed")
 
     finally:
-        # 🔴 CLEANUP (CRUCIAL SUR RENDER)
         print("[WORKER] Cleaning temp files...")
         for f in temp_files:
             try:

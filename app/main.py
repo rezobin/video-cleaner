@@ -56,7 +56,7 @@ def upload(files: list[UploadFile] = File(...), user=Depends(get_user)):
     res = supabase.table("jobs").insert({
         "id": job_id,
         "user_id": user["sub"],
-        "status": "queued",
+        "status": "pending",
         "input_paths": inputs
     }).execute()
 
