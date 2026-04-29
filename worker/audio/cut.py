@@ -1,5 +1,4 @@
 import subprocess
-import re
 
 THRESHOLD = -35  # dB
 MIN_SILENCE = 0.2
@@ -20,9 +19,6 @@ def get_video_duration(path: str) -> float:
 
 
 def detect_silences(path: str):
-    """
-    Retourne liste de silences [(start, end)]
-    """
     cmd = [
         "ffmpeg",
         "-i", path,
@@ -31,7 +27,14 @@ def detect_silences(path: str):
         "-"
     ]
 
-    proc = subprocess.run(cmd, stderr=subprocess.PIPE, text=True)
+    print("[FFMPEG DETECT]", " ".join(cmd))
+
+    proc = subprocess.run(
+        cmd,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=60
+    )
 
     silences = []
     start = None
@@ -48,9 +51,6 @@ def detect_silences(path: str):
 
 
 def build_segments(duration, silences):
-    """
-    Convertit silences → segments à garder
-    """
     if not silences:
         return [(0, duration)]
 
@@ -58,15 +58,17 @@ def build_segments(duration, silences):
     prev_end = 0
 
     for start, end in silences:
+
         seg_start = max(prev_end, 0)
         seg_end = max(start - PADDING, seg_start)
 
-        if seg_end > seg_start:
+        # 🔴 évite segments trop courts (cause #1 des freezes)
+        if seg_end - seg_start > 0.3:
             segments.append((seg_start, seg_end))
 
         prev_end = end + PADDING
 
-    if prev_end < duration:
+    if duration - prev_end > 0.3:
         segments.append((prev_end, duration))
 
     return segments

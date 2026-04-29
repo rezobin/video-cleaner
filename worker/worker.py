@@ -56,11 +56,14 @@ def process(job):
             segments = build_segments(duration, silences)
 
             print(f"[WORKER] segments: {segments}")
+            print(f"[WORKER] Total segments: {len(segments)}")
 
             # -------------------------
-            # CUT VIDEO (NO RE-ENCODE)
+            # CUT VIDEO
             # -------------------------
             for j, (start, end) in enumerate(segments):
+
+                print(f"[WORKER] Processing segment {start} → {end}")
 
                 out = f"/tmp/{job_id}_{i}_{j}.mp4"
 
@@ -68,6 +71,9 @@ def process(job):
 
                 final_segments.append(out)
                 temp_files.append(out)
+
+        if not final_segments:
+            raise Exception("No segments produced")
 
         # -------------------------
         # CONCAT FINAL
@@ -83,6 +89,8 @@ def process(job):
         # UPLOAD
         # -------------------------
         final_storage = f"{job_id}.mp4"
+
+        print("[WORKER] uploading")
 
         with open(output_path, "rb") as f:
             upload(final_storage, f)
@@ -116,6 +124,7 @@ while True:
     job = get_job()
 
     if not job:
+        print("[WORKER] No job")
         time.sleep(2)
         continue
 

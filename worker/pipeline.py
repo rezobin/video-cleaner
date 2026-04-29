@@ -11,16 +11,19 @@ def cut_video(input_path, start, end, output_path):
         "-i", input_path,
         "-t", str(duration),
 
-        # 🔥 ULTRA IMPORTANT
-        "-c", "copy",
+        # 🔴 TEMP pour stabilité
+        "-c:v", "libx264",
+        "-preset", "veryfast",
+        "-crf", "23",
 
-        # évite bugs timestamp
-        "-avoid_negative_ts", "1",
+        "-c:a", "aac",
 
         output_path
     ]
 
-    subprocess.run(cmd, check=True)
+    print("[FFMPEG CUT]", " ".join(cmd))
+
+    subprocess.run(cmd, check=True, timeout=120)
 
 
 def concat(video_list, output_path):
@@ -35,10 +38,18 @@ def concat(video_list, output_path):
         "-f", "concat",
         "-safe", "0",
         "-i", list_file,
-        "-c", "copy",
+
+        # 🔴 TEMP pour stabilité
+        "-c:v", "libx264",
+        "-preset", "veryfast",
+        "-crf", "23",
+        "-c:a", "aac",
+
         output_path
     ]
 
-    subprocess.run(cmd, check=True)
+    print("[FFMPEG CONCAT]", " ".join(cmd))
+
+    subprocess.run(cmd, check=True, timeout=180)
 
     os.remove(list_file)
