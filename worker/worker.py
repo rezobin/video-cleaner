@@ -5,12 +5,11 @@ from jobs import update, get_job
 from storage import download, upload, public_url
 
 from audio.cut import (
-    detect_silences,
-    build_segments,
-    get_video_duration
+    detect_silences_ffmpeg,
+    build_segments
 )
 
-from pipeline import cut_video, concat
+from pipeline import concat_filter_complex
 
 
 def process(job):
@@ -18,26 +17,24 @@ def process(job):
     job_id = job["id"]
     inputs = job["input_paths"]
 
-    print(f"[WORKER] START job={job_id}")
+    print(f"[WORKER] START {job_id}")
 
     temp_files = []
 
     try:
         update(job_id, "processing")
 
-        final_segments = []
+        all_outputs = []
 
-        # -------------------------
-        # PROCESS EACH VIDEO
-        # -------------------------
         for i, path in enumerate(inputs):
 
             raw_path = f"/tmp/{job_id}_{i}.mp4"
 
-            print(f"[WORKER] downloading {path}")
+            print("[DL]", path)
+
             raw = download(path)
 
-            if raw is None:
+            if not raw:
                 raise Exception("Download failed")
 
             with open(raw_path, "wb") as f:
@@ -45,86 +42,75 @@ def process(job):
 
             temp_files.append(raw_path)
 
-            # -------------------------
-            # SILENCE DETECTION
-            # -------------------------
-            print("[WORKER] detect silence")
-            silences = detect_silences(raw_path)
+            # durée vidéo
+            duration = float(os.popen(
+                f"ffprobe -v error -show_entries format=duration "
+                f"-of default=noprint_wrappers=1:nokey=1 {raw_path}"
+            ).read().strip())
 
-            duration = get_video_duration(raw_path)
+            print("[SILENCE DETECTION]")
+            silences = detect_silences_ffmpeg(raw_path)
 
             segments = build_segments(duration, silences)
 
-            print(f"[WORKER] segments: {segments}")
-            print(f"[WORKER] Total segments: {len(segments)}")
+            print(f"[SEGMENTS] {len(segments)}")
 
-            # -------------------------
-            # CUT VIDEO
-            # -------------------------
-            for j, (start, end) in enumerate(segments):
+            if len(segments) == 0:
+                continue
 
-                print(f"[WORKER] Processing segment {start} → {end}")
+            output_path = f"/tmp/{job_id}_{i}_out.mp4"
 
-                out = f"/tmp/{job_id}_{i}_{j}.mp4"
+            print("[FILTER COMPLEX CUT]")
 
-                cut_video(raw_path, start, end, out)
+            concat_filter_complex(raw_path, segments, output_path)
 
-                final_segments.append(out)
-                temp_files.append(out)
+            all_outputs.append(output_path)
+            temp_files.append(output_path)
 
-        if not final_segments:
-            raise Exception("No segments produced")
+        if not all_outputs:
+            raise Exception("No outputs generated")
 
-        # -------------------------
-        # CONCAT FINAL
-        # -------------------------
-        output_path = f"/tmp/{job_id}.mp4"
+        final_path = f"/tmp/{job_id}.mp4"
 
-        print("[WORKER] concat final")
-        concat(final_segments, output_path)
+        # concat final simple
+        with open("/tmp/list.txt", "w") as f:
+            for v in all_outputs:
+                f.write(f"file '{v}'\n")
 
-        temp_files.append(output_path)
+        os.system(f"""
+            ffmpeg -y -f concat -safe 0 -i /tmp/list.txt \
+            -c:v libx264 -preset fast -crf 20 \
+            -c:a aac -movflags +faststart {final_path}
+        """)
 
-        # -------------------------
-        # UPLOAD
-        # -------------------------
-        final_storage = f"{job_id}.mp4"
+        with open(final_path, "rb") as f:
+            upload(f"{job_id}.mp4", f)
 
-        print("[WORKER] uploading")
-
-        with open(output_path, "rb") as f:
-            upload(final_storage, f)
-
-        url = public_url(final_storage)
-
-        if not url:
-            raise Exception("URL generation failed")
+        url = public_url(f"{job_id}.mp4")
 
         update(job_id, "done", url)
 
-        print("[WORKER] DONE")
+        print("[DONE]", url)
 
     except Exception as e:
-        print("[WORKER ERROR]", e)
+        print("[ERROR]", e)
         update(job_id, "failed")
 
     finally:
-        print("[WORKER] cleanup")
         for f in temp_files:
             try:
                 if os.path.exists(f):
                     os.remove(f)
-            except Exception as e:
-                print("[CLEAN ERROR]", e)
+            except:
+                pass
 
 
-print("[WORKER] START")
+print("[WORKER START]")
 
 while True:
     job = get_job()
 
     if not job:
-        print("[WORKER] No job")
         time.sleep(2)
         continue
 

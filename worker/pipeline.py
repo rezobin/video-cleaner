@@ -1,16 +1,32 @@
 import subprocess
 
 
-def cut_video(input_path, start, end, output_path):
+def concat_filter_complex(input_path, segments, output_path):
 
-    subprocess.run([
-        "ffmpeg", "-y",
-        "-ss", str(start),
-        "-to", str(end),
-        "-i", input_path,
+    filter_parts = []
+    inputs = []
 
-        "-avoid_negative_ts", "make_zero",
-        "-fflags", "+genpts",
+    for i, (start, end) in enumerate(segments):
+
+        inputs.append("-ss")
+        inputs.append(str(start))
+        inputs.append("-to")
+        inputs.append(str(end))
+        inputs.append("-i")
+        inputs.append(input_path)
+
+        filter_parts.append(f"[{i}:v:0][{i}:a:0]")
+
+    concat_filter = "".join(filter_parts) + f"concat=n={len(segments)}:v=1:a=1[outv][outa]"
+
+    cmd = ["ffmpeg", "-y"]
+
+    cmd += inputs
+
+    cmd += [
+        "-filter_complex", concat_filter,
+        "-map", "[outv]",
+        "-map", "[outa]",
 
         "-c:v", "libx264",
         "-preset", "veryfast",
@@ -18,29 +34,9 @@ def cut_video(input_path, start, end, output_path):
 
         "-c:a", "aac",
 
-        output_path
-    ], check=True)
-
-
-def concat(video_list, output_path):
-
-    list_file = "/tmp/list.txt"
-
-    with open(list_file, "w") as f:
-        for v in video_list:
-            f.write(f"file '{v}'\n")
-
-    subprocess.run([
-        "ffmpeg", "-y",
-        "-f", "concat",
-        "-safe", "0",
-        "-i", list_file,
-
-        "-c:v", "libx264",
-        "-preset", "fast",
-        "-crf", "20",
-
-        "-c:a", "aac",
+        "-movflags", "+faststart",
 
         output_path
-    ], check=True)
+    ]
+
+    subprocess.run(cmd, check=True)
