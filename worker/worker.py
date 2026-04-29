@@ -35,7 +35,7 @@ def process(job):
             raw_path = f"/tmp/{job_id}_{i}.mp4"
             audio_path = f"/tmp/{job_id}_{i}.wav"
 
-            print(f"[WORKER] downloading {path}")
+            print(f"[WORKER] download {path}")
             raw = download(path)
 
             with open(raw_path, "wb") as f:
@@ -56,7 +56,6 @@ def process(job):
             print("[WORKER] detect silence")
             silences = detect_silence_segments(audio_path)
 
-            # durée vidéo (simple ffprobe)
             duration = float(
                 os.popen(
                     f"ffprobe -v error -show_entries format=duration "
@@ -72,7 +71,7 @@ def process(job):
             print(f"[WORKER] segments: {segments}")
 
             # -------------------------
-            # CUT ORIGINAL VIDEO
+            # CUT VIDEO
             # -------------------------
             for j, (start, end) in enumerate(segments):
 
@@ -88,7 +87,7 @@ def process(job):
         # -------------------------
         output_path = f"/tmp/{job_id}.mp4"
 
-        print("[WORKER] concat final")
+        print("[WORKER] concat")
         concat(final_segments, output_path)
 
         # -------------------------
@@ -103,7 +102,7 @@ def process(job):
 
         update(job_id, "done", url)
 
-        print("[WORKER] DONE")
+        print("[WORKER] DONE", url)
 
     except Exception as e:
         print("[WORKER ERROR]", e)
