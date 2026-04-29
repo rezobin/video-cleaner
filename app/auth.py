@@ -4,9 +4,10 @@ from fastapi import Header, HTTPException
 
 from app.config import JWKS_URL, SUPABASE_JWT_AUD
 
+
 def get_user(authorization: str = Header(None)):
     if not authorization:
-        raise HTTPException(401)
+        raise HTTPException(status_code=401, detail="Missing auth header")
 
     token = authorization.replace("Bearer ", "")
 
@@ -25,4 +26,4 @@ def get_user(authorization: str = Header(None)):
 
     except Exception as e:
         print("AUTH ERROR:", e)
-        raise HTTPException(401)
+        raise HTTPException(status_code=401, detail="Invalid token")

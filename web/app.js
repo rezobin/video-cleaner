@@ -1,13 +1,16 @@
 const API_URL = "https://video-cleaner-8j64.onrender.com"
 
-const supabaseClient = supabase.createClient(
-  "https://mgsngnapsfafydspfmnt.supabase.co",
-  "sb_publishable_DGfn4J71yW2U6oY7beHGDg_Wptvc0Wy"
-)
+const SUPABASE_URL = "https://mgsngnapsfafydspfmnt.supabase.co"
+const SUPABASE_ANON_KEY = "sb_publishable_DGfn4J71yW2U6oY7beHGDg_Wptvc0Wy"
+
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 let session = null
+let selectedFiles = []
 
-// ---------------- AUTH ----------------
+// -------------------------
+// AUTH
+// -------------------------
 
 async function login() {
   const email = document.getElementById("email").value
@@ -15,29 +18,84 @@ async function login() {
   await supabaseClient.auth.signInWithOtp({
     email,
     options: {
+      // IMPORTANT: production-safe redirect
       emailRedirectTo: window.location.origin
     }
   })
 
-  alert("check email")
+  alert("Check your email")
 }
 
 supabaseClient.auth.onAuthStateChange((_, sess) => {
   session = sess
 })
 
-// ---------------- UPLOAD ----------------
+// -------------------------
+// FILE PREVIEW + STATE
+// -------------------------
+
+document.getElementById("files").addEventListener("change", (e) => {
+  selectedFiles = Array.from(e.target.files)
+  renderPreviews()
+})
+
+function renderPreviews() {
+  const container = document.getElementById("preview")
+  if (!container) return
+
+  container.innerHTML = ""
+
+  selectedFiles.forEach((file, index) => {
+    const url = URL.createObjectURL(file)
+
+    const div = document.createElement("div")
+    div.style.margin = "10px"
+    div.style.border = "1px solid #ccc"
+    div.style.padding = "10px"
+
+    div.innerHTML = `
+      <video src="${url}" width="200" controls></video>
+      <div>
+        <button onclick="moveUp(${index})">⬆️</button>
+        <button onclick="moveDown(${index})">⬇️</button>
+        <button onclick="removeFile(${index})">🗑️</button>
+      </div>
+    `
+
+    container.appendChild(div)
+  })
+}
+
+window.removeFile = (i) => {
+  selectedFiles.splice(i, 1)
+  renderPreviews()
+}
+
+window.moveUp = (i) => {
+  if (i === 0) return
+  [selectedFiles[i - 1], selectedFiles[i]] = [selectedFiles[i], selectedFiles[i - 1]]
+  renderPreviews()
+}
+
+window.moveDown = (i) => {
+  if (i === selectedFiles.length - 1) return
+  [selectedFiles[i + 1], selectedFiles[i]] = [selectedFiles[i], selectedFiles[i + 1]]
+  renderPreviews()
+}
+
+// -------------------------
+// UPLOAD
+// -------------------------
 
 async function upload() {
-
   if (!session) return alert("login first")
+  if (selectedFiles.length === 0) return alert("no files")
 
-  const files = document.getElementById("files").files
   const form = new FormData()
 
-  for (let f of files) {
+  selectedFiles.forEach((f) => {
     form.append("files", f)
-  }
+  })
 
   const res = await fetch(`${API_URL}/upload`, {
     method: "POST",
@@ -49,15 +107,20 @@ async function upload() {
 
   const data = await res.json()
 
+  if (!data.job_id) {
+    alert("upload failed")
+    return
+  }
+
   poll(data.job_id)
 }
 
-// ---------------- POLL ----------------
+// -------------------------
+// POLL STATUS
+// -------------------------
 
 async function poll(jobId) {
-
   const interval = setInterval(async () => {
-
     const res = await fetch(`${API_URL}/status/${jobId}`, {
       headers: {
         "Authorization": "Bearer " + session.access_token
@@ -72,13 +135,14 @@ async function poll(jobId) {
       clearInterval(interval)
 
       const a = document.getElementById("download")
-      a.href = `${API_URL}/download/${jobId}`
+      a.href = data.output_url || `${API_URL}/download/${jobId}`
       a.style.display = "block"
+      a.innerText = "DOWNLOAD FINAL VIDEO"
     }
 
     if (data.status === "failed") {
       clearInterval(interval)
-      alert("failed")
+      alert("processing failed")
     }
 
   }, 1500)
