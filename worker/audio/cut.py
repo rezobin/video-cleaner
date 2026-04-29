@@ -1,69 +1,39 @@
 import subprocess
-import json
 
-PADDING = 0.2
+# paramètres ajustables
+THRESHOLD = "-35dB"
+MIN_SILENCE = "0.2"
+PADDING = "0.2"
 
-
-# -------------------------
-# 1. AUDIO EXTRACTION
-# -------------------------
-def extract_audio(video_path: str, audio_path: str):
-
-    subprocess.run([
-        "ffmpeg", "-y",
-        "-i", video_path,
-        "-vn",
-        "-acodec", "pcm_s16le",
-        "-ar", "16000",
-        "-ac", "1",
-        audio_path
-    ], check=True)
-
-
-# -------------------------
-# 2. SILENCE DETECTION
-# -------------------------
-def detect_silence_segments(audio_path: str):
+def remove_silence(input_path: str, output_path: str):
+    """
+    Coupe les silences en gardant sync audio/video
+    """
 
     cmd = [
-        "ffmpeg", "-i", audio_path,
-        "-af", "silencedetect=noise=-35dB:d=0.3",
-        "-f", "null", "-"
+        "ffmpeg", "-y",
+        "-i", input_path,
+
+        "-af",
+        f"silenceremove="
+        f"start_periods=1:"
+        f"start_duration={MIN_SILENCE}:"
+        f"start_threshold={THRESHOLD}:"
+        f"stop_periods=-1:"
+        f"stop_duration={MIN_SILENCE}:"
+        f"stop_threshold={THRESHOLD}",
+
+        # 🔴 IMPORTANT QUALITÉ
+        "-c:v", "libx264",
+        "-preset", "fast",
+        "-crf", "18",
+
+        "-c:a", "aac",
+        "-b:a", "192k",
+
+        "-movflags", "+faststart",
+
+        output_path
     ]
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    log = result.stderr
-
-    silences = []
-
-    import re
-    starts = re.findall(r"silence_start: ([0-9.]+)", log)
-    ends = re.findall(r"silence_end: ([0-9.]+)", log)
-
-    for s, e in zip(starts, ends):
-        silences.append((float(s), float(e)))
-
-    return silences
-
-
-# -------------------------
-# 3. BUILD KEEP SEGMENTS
-# -------------------------
-def build_segments(duration: float, silences):
-
-    segments = []
-    last = 0.0
-
-    for s, e in silences:
-        start = max(0, last)
-        end = max(0, s - PADDING)
-
-        if end > start:
-            segments.append((start, end))
-
-        last = e + PADDING
-
-    if last < duration:
-        segments.append((last, duration))
-
-    return segments
+    subprocess.run(cmd, check=True)
