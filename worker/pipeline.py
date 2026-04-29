@@ -1,21 +1,5 @@
 import subprocess
 
-
-def cut_video(input_path, start, end, output_path):
-
-    subprocess.run([
-        "ffmpeg", "-y",
-        "-ss", str(start),
-        "-to", str(end),
-        "-i", input_path,
-        "-c:v", "libx264",
-        "-preset", "fast",
-        "-crf", "23",
-        "-c:a", "aac",
-        output_path
-    ], check=True)
-
-
 def concat(video_list, output_path):
 
     list_file = "/tmp/list.txt"
@@ -29,9 +13,9 @@ def concat(video_list, output_path):
         "-f", "concat",
         "-safe", "0",
         "-i", list_file,
-        "-c:v", "libx264",
-        "-preset", "fast",
-        "-crf", "23",
-        "-c:a", "aac",
+
+        # 🚨 IMPORTANT: no re-encode vidéo
+        "-c", "copy",
+
         output_path
     ], check=True)
