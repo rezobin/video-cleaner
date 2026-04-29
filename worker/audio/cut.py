@@ -1,8 +1,8 @@
 import subprocess
 
-THRESHOLD = -35  # dB
-MIN_SILENCE = 0.2
-PADDING = 0.2
+THRESHOLD = -30      # moins strict
+MIN_SILENCE = 0.4    # ignore micro pauses
+PADDING = 0.35       # respire un peu
 
 
 def get_video_duration(path: str) -> float:
@@ -63,7 +63,7 @@ def build_segments(duration, silences):
         seg_end = max(start - PADDING, seg_start)
 
         # 🔴 évite segments trop courts (cause #1 des freezes)
-        if seg_end - seg_start > 0.3:
+        if seg_end - seg_start > 0.6:
             segments.append((seg_start, seg_end))
 
         prev_end = end + PADDING

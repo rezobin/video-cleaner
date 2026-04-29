@@ -7,16 +7,19 @@ def cut_video(input_path, start, end, output_path):
 
     cmd = [
         "ffmpeg", "-y",
+
+        "-i", input_path,        # 🔴 IMPORTANT: input AVANT -ss
         "-ss", str(start),
-        "-i", input_path,
         "-t", str(duration),
 
-        # 🔴 TEMP pour stabilité
+        "-avoid_negative_ts", "1",
+
         "-c:v", "libx264",
         "-preset", "veryfast",
-        "-crf", "23",
+        "-crf", "20",
 
         "-c:a", "aac",
+        "-b:a", "128k",
 
         output_path
     ]
@@ -24,7 +27,6 @@ def cut_video(input_path, start, end, output_path):
     print("[FFMPEG CUT]", " ".join(cmd))
 
     subprocess.run(cmd, check=True, timeout=120)
-
 
 def concat(video_list, output_path):
     list_file = "/tmp/list.txt"
@@ -41,8 +43,8 @@ def concat(video_list, output_path):
 
         # 🔴 TEMP pour stabilité
         "-c:v", "libx264",
-        "-preset", "veryfast",
-        "-crf", "23",
+        "-preset", "ultrafast",
+        "-crf", "20",
         "-c:a", "aac",
 
         output_path
