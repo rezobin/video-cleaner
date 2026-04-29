@@ -1,84 +1,68 @@
 import subprocess
 
-THRESHOLD = -40
-MIN_SILENCE = 0.5
-PADDING = 0.3
+THRESHOLD = "-40dB"
+MIN_SILENCE = 0.25
+PADDING = 0.15
+MIN_SEGMENT = 0.6
 
 
-def get_video_duration(path: str) -> float:
-    result = subprocess.check_output(
-        [
-            "ffprobe",
-            "-v", "error",
-            "-show_entries", "format=duration",
-            "-of", "default=noprint_wrappers=1:nokey=1",
-            path
-        ]
-    )
-    return float(result.decode().strip())
+def extract_audio(input_path, output_path):
+    subprocess.run([
+        "ffmpeg", "-y",
+        "-i", input_path,
+        "-vn",
+        "-ac", "1",
+        "-ar", "16000",
+        output_path
+    ], check=True)
 
 
-def detect_silences(path: str):
+def detect_silence_segments(audio_path):
+
     cmd = [
         "ffmpeg",
-        "-i", path,
-        "-af", f"silencedetect=noise={THRESHOLD}dB:d={MIN_SILENCE}",
+        "-i", audio_path,
+        "-af", f"silencedetect=noise={THRESHOLD}:d={MIN_SILENCE}",
         "-f", "null",
         "-"
     ]
 
-    print("[FFMPEG DETECT]", " ".join(cmd))
+    result = subprocess.run(cmd, stderr=subprocess.PIPE, text=True)
 
-    proc = subprocess.run(
-        cmd,
-        stderr=subprocess.PIPE,
-        text=True,
-        timeout=60
-    )
+    silence_starts = []
+    silence_ends = []
 
-    silences = []
-    print(f"[DEBUG] silences: {silences}")
-
-    start = None
-
-    for line in proc.stderr.split("\n"):
+    for line in result.stderr.split("\n"):
         if "silence_start" in line:
-            start = float(line.split("silence_start: ")[1])
+            silence_starts.append(float(line.split("silence_start: ")[1]))
         elif "silence_end" in line:
-            end = float(line.split("silence_end: ")[1].split(" |")[0])
-            silences.append((start, end))
-            start = None
+            silence_ends.append(float(line.split("silence_end: ")[1].split(" ")[0]))
 
-    return silences
+    return list(zip(silence_starts, silence_ends))
 
 
-def build_segments(duration, silences, padding=0.3):
+def build_segments(duration, silences):
 
     segments = []
-    last_end = 0.0
+    current = 0.0
 
-    for silence_start, silence_end in silences:
+    for start, end in silences:
 
-        seg_start = last_end
-        seg_end = silence_start
+        start = max(0, start - PADDING)
+        end = min(duration, end + PADDING)
 
-        # ajoute padding
-        seg_start = max(0, seg_start - padding)
-        seg_end = min(duration, seg_end + padding)
+        if start > current:
+            segments.append((current, start))
 
-        if seg_end - seg_start > 0.8:  # 🔴 important
-            segments.append((seg_start, seg_end))
+        current = end
 
-        last_end = silence_end
+    if current < duration:
+        segments.append((current, duration))
 
-    # dernier segment après le dernier silence
-    if last_end < duration:
-        seg_start = max(0, last_end - padding)
-        seg_end = duration
+    # 🔴 filtre segments trop courts
+    filtered = []
+    for s, e in segments:
+        if e - s >= MIN_SEGMENT:
+            filtered.append((s, e))
 
-        if seg_end - seg_start > 0.8:
-            segments.append((seg_start, seg_end))
-
-    print(f"[DEBUG] segments: {segments}")
-
-    return segments
+    return filtered
