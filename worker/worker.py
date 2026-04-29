@@ -59,7 +59,7 @@ def process(job):
         update(job_id, "failed")
 
 
-print("WORKER STARTED")
+print("WORKER STARTED 🟢")
 
 while True:
 
