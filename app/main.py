@@ -32,6 +32,9 @@ def root():
 def upload(files: list[UploadFile] = File(...), user=Depends(get_user)):
 
     job_id = str(uuid.uuid4())
+
+    print("[UPLOAD] job created:", job_id)
+
     inputs = []
 
     for i, f in enumerate(files):
@@ -42,27 +45,24 @@ def upload(files: list[UploadFile] = File(...), user=Depends(get_user)):
         with open(temp_path, "wb") as buffer:
             shutil.copyfileobj(f.file, buffer)
 
-        with open(temp_path, "rb") as file_data:
-            supabase.storage.from_("videos").upload(
-                path=path,
-                file=file_data,
-                file_options={
-                    "content-type": "video/mp4",
-                    "upsert": "true"
-                }
-            )
+        supabase.storage.from_("videos").upload(
+            path=path,
+            file=open(temp_path, "rb"),
+            file_options={"content-type": "video/mp4", "upsert": "true"}
+        )
 
         inputs.append(path)
 
-    supabase.table("jobs").insert({
+    res = supabase.table("jobs").insert({
         "id": job_id,
         "user_id": user["sub"],
         "status": "queued",
         "input_paths": inputs
     }).execute()
 
-    return {"job_id": job_id}
+    print("[UPLOAD] DB insert response:", res)
 
+    return {"job_id": job_id}
 
 # -------------------------
 # STATUS
