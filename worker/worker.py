@@ -1,38 +1,20 @@
 import time
 import os
-from concurrent.futures import ThreadPoolExecutor
 
 from jobs import update, get_job
 from storage import download, upload, public_url
-from pipeline import concat
-from audio.cut import remove_silence
 
-MAX_WORKERS = 2  # tu peux monter à 4 sur 2GB
+from audio.cut import (
+    detect_silences,
+    build_segments,
+    get_video_duration
+)
 
-
-def process_file(job_id, i, path):
-    print(f"[WORKER] Downloading {path}")
-
-    raw = download(path)
-    if raw is None:
-        raise Exception("Download failed")
-
-    raw_path = f"/tmp/{job_id}_{i}_raw.mp4"
-    clean_path = f"/tmp/{job_id}_{i}_clean.mp4"
-
-    with open(raw_path, "wb") as f:
-        f.write(raw)
-
-    print(f"[WORKER] Processing silence removal {i}")
-    remove_silence(raw_path, clean_path)
-
-    if not os.path.exists(clean_path):
-        raise Exception("Clean file not created")
-
-    return raw_path, clean_path
+from pipeline import cut_video, concat
 
 
 def process(job):
+
     job_id = job["id"]
     inputs = job["input_paths"]
 
@@ -43,33 +25,57 @@ def process(job):
     try:
         update(job_id, "processing")
 
-        cleaned_files = []
-
-        # 🔥 PARALLEL PROCESSING
-        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            futures = [
-                executor.submit(process_file, job_id, i, path)
-                for i, path in enumerate(inputs)
-            ]
-
-            for future in futures:
-                raw_path, clean_path = future.result()
-                temp_files.append(raw_path)
-                temp_files.append(clean_path)
-                cleaned_files.append(clean_path)
-
-        print("[WORKER] All files processed")
+        final_segments = []
 
         # -------------------------
-        # CONCAT
+        # PROCESS EACH VIDEO
+        # -------------------------
+        for i, path in enumerate(inputs):
+
+            raw_path = f"/tmp/{job_id}_{i}.mp4"
+
+            print(f"[WORKER] downloading {path}")
+            raw = download(path)
+
+            if raw is None:
+                raise Exception("Download failed")
+
+            with open(raw_path, "wb") as f:
+                f.write(raw)
+
+            temp_files.append(raw_path)
+
+            # -------------------------
+            # SILENCE DETECTION
+            # -------------------------
+            print("[WORKER] detect silence")
+            silences = detect_silences(raw_path)
+
+            duration = get_video_duration(raw_path)
+
+            segments = build_segments(duration, silences)
+
+            print(f"[WORKER] segments: {segments}")
+
+            # -------------------------
+            # CUT VIDEO (NO RE-ENCODE)
+            # -------------------------
+            for j, (start, end) in enumerate(segments):
+
+                out = f"/tmp/{job_id}_{i}_{j}.mp4"
+
+                cut_video(raw_path, start, end, out)
+
+                final_segments.append(out)
+                temp_files.append(out)
+
+        # -------------------------
+        # CONCAT FINAL
         # -------------------------
         output_path = f"/tmp/{job_id}.mp4"
 
-        print("[WORKER] Concatenating...")
-        concat(cleaned_files, output_path)
-
-        if not os.path.exists(output_path):
-            raise Exception("Concat failed")
+        print("[WORKER] concat final")
+        concat(final_segments, output_path)
 
         temp_files.append(output_path)
 
@@ -78,7 +84,6 @@ def process(job):
         # -------------------------
         final_storage = f"{job_id}.mp4"
 
-        print("[WORKER] Uploading...")
         with open(output_path, "rb") as f:
             upload(final_storage, f)
 
@@ -89,14 +94,14 @@ def process(job):
 
         update(job_id, "done", url)
 
-        print("[WORKER] DONE", job_id)
+        print("[WORKER] DONE")
 
     except Exception as e:
         print("[WORKER ERROR]", e)
         update(job_id, "failed")
 
     finally:
-        print("[WORKER] Cleaning temp files")
+        print("[WORKER] cleanup")
         for f in temp_files:
             try:
                 if os.path.exists(f):
@@ -105,7 +110,7 @@ def process(job):
                 print("[CLEAN ERROR]", e)
 
 
-print("[WORKER] STARTED")
+print("[WORKER] START")
 
 while True:
     job = get_job()
