@@ -18,3 +18,16 @@ def update(job_id, status, output_url=None):
     print("[JOBS UPDATE RESPONSE]", res)
 
     return res
+
+
+def get_job():
+    res = supabase.rpc("get_next_job").execute()
+    
+    if not res.data:
+        return None
+
+    job = res.data[0]
+
+    print("[JOBS] Picked job:", job["id"])
+
+    return job

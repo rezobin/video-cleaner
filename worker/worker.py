@@ -83,8 +83,8 @@ def process(job):
 
         print("[WORKER] Upload response:", res)
 
-        if res is None:
-            raise Exception("Upload returned None")
+        if hasattr(res, "error") and res.error:
+            raise Exception(res.error)
 
         url = public_url(final_storage)
 
