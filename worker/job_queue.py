@@ -35,6 +35,9 @@ def push_job(job: dict):
 
     r.lpush(QUEUE_KEY, job_id)
 
+    print("[PUSH] job pushed =", job["id"], flush=True)
+    print("[PUSH] queue key =", QUEUE_KEY, flush=True)
+
 
 # -------------------------
 # GET JOB (ATOMIC)
