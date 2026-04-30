@@ -56,4 +56,6 @@ def upload(files: list[UploadFile] = File(...), user=Depends(get_user)):
         "input_paths": inputs
     })
 
+    print("[DEBUG] pushing job:", job_id)
+
     return {"job_id": job_id}

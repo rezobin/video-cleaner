@@ -113,22 +113,26 @@ def process(job):
                 pass
 
 
-print("[WORKER START]")
 
+print("[WORKER START]")
 print("REDIS_URL =", os.getenv("REDIS_URL"))
 
 while True:
     try:
-        print("[WORKER] polling...")
-        job = pop_job()
-        print("[WORKER] got job:", job)
+        print("[WORKER] polling Redis...")
 
-        if not job:
-            time.sleep(2)
+        job = pop_job()
+
+        print("[WORKER] raw job =", job)
+
+        if job is None:
+            time.sleep(1)
             continue
+
+        print(f"[WORKER] processing job {job.get('id')}")
 
         process(job)
 
     except Exception as e:
-        print("[WORKER FATAL LOOP ERROR]", e)
+        print("[WORKER LOOP ERROR]", repr(e))
         time.sleep(2)
