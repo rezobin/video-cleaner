@@ -115,6 +115,11 @@ def process(job):
 
 print("[WORKER START]")
 
+print("[DEBUG] polling queue...")
+job = pop_job()
+print("[DEBUG] job raw =", job)
+
+
 while True:
     job = pop_job()
 
