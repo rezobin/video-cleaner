@@ -115,6 +115,8 @@ def process(job):
 
 print("[WORKER START]")
 
+print("REDIS_URL =", os.getenv("REDIS_URL"))
+
 while True:
     try:
         print("[WORKER] polling...")
