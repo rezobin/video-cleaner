@@ -123,11 +123,15 @@ while True:
 
         job = pop_job()
 
-        print("[WORKER] raw job =", job)
+        job = pop_job()
 
-        if job is None:
-            time.sleep(1)
+        print("[WORKER DEBUG] received job =", job)
+
+        if not job:
+            time.sleep(2)
             continue
+
+        print("[WORKER] raw job =", job)
 
         print(f"[WORKER] processing job {job.get('id')}")
 

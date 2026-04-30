@@ -35,10 +35,14 @@ def push_job(job: dict):
 def pop_job():
     job_id = r.brpoplpush(QUEUE_KEY, PROCESSING_KEY, timeout=5)
 
+    print("[QUEUE DEBUG] pop_job raw job_id =", job_id)
+
     if not job_id:
         return None
 
     data = r.hget(f"job:{job_id}", "data")
+
+    print("[QUEUE DEBUG] job data =", data)
 
     if not data:
         return None
