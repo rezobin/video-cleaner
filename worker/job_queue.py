@@ -30,9 +30,9 @@ def push_job(job: dict):
         "ts": str(time.time())
     })
 
+    print("[PUSH DEBUG] BEFORE LPUSH", job_id, flush=True)
     r.lpush(QUEUE_KEY, job_id)
-
-    print("[PUSH] job pushed =", job_id, flush=True)
+    print("[PUSH DEBUG] AFTER LPUSH", r.llen(QUEUE_KEY), flush=True)
 
 
 # -------------------------

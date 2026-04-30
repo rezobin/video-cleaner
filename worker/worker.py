@@ -9,8 +9,9 @@ from audio.cut import detect_silences, build_segments
 from pipeline import cut_video
 
 
-print("=== WORKER BOOT ===", flush=True)
-print("REDIS_URL =", os.getenv("REDIS_URL"), flush=True)
+print("[REDIS DEBUG] id =", id(r), flush=True)
+print("[REDIS DEBUG] ping =", r.ping(), flush=True)
+print("[REDIS DEBUG] queue len =", r.llen("jobs:queue"), flush=True)
 
 
 # -------------------------
@@ -138,8 +139,13 @@ while True:
 
         print("[WORKER] processing job", job["id"], flush=True)
 
+
+
+        print("[RAW QUEUE SNAPSHOT]", r.lrange("jobs:queue", 0, -1), flush=True)    
+        
         process(job)
 
     except Exception as e:
         print("[WORKER LOOP ERROR]", repr(e), flush=True)
         time.sleep(2)
+

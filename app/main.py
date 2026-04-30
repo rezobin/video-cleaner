@@ -18,8 +18,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-print("[API] REDIS =", os.getenv("REDIS_URL"))
+print("[REDIS DEBUG] id =", id(r), flush=True)
+print("[REDIS DEBUG] ping =", r.ping(), flush=True)
+print("[REDIS DEBUG] queue len =", r.llen("jobs:queue"), flush=True)
 
 @app.post("/upload")
 def upload(files: list[UploadFile] = File(...), user=Depends(get_user)):
