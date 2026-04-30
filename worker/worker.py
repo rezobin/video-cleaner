@@ -1,22 +1,18 @@
-import time
 import os
+import time
 import subprocess
 
-from job_queue import pop_job, ack_job, fail_job
+from job_queue import pop_job, ack_job
 from storage import download, upload, public_url
 
 from audio.cut import detect_silences, build_segments
 from pipeline import cut_video
 
 
-print("[REDIS DEBUG] id =", id(r), flush=True)
-print("[REDIS DEBUG] ping =", r.ping(), flush=True)
-print("[REDIS DEBUG] queue len =", r.llen("jobs:queue"), flush=True)
+print("=== WORKER START ===", flush=True)
+print("REDIS =", os.getenv("REDIS_URL"), flush=True)
 
 
-# -------------------------
-# UTILS
-# -------------------------
 def get_duration(path):
     return float(subprocess.check_output([
         "ffprobe", "-v", "error",
@@ -26,7 +22,7 @@ def get_duration(path):
     ]).decode().strip())
 
 
-def concat_final(files, output_path):
+def concat(files, output_path):
 
     with open("/tmp/list.txt", "w") as f:
         for v in files:
@@ -49,103 +45,61 @@ def concat_final(files, output_path):
     ], check=True)
 
 
-# -------------------------
-# PROCESS JOB
-# -------------------------
 def process(job):
 
     job_id = job["id"]
     inputs = job["input_paths"]
 
-    print(f"[WORKER] START {job_id}", flush=True)
+    print("[JOB]", job_id, flush=True)
 
-    temp_files = []
+    outputs = []
+    temp = []
 
-    try:
-        outputs = []
+    for i, path in enumerate(inputs):
 
-        for i, path in enumerate(inputs):
+        raw = download(path)
 
-            raw_path = f"/tmp/{job_id}_{i}.mp4"
+        raw_path = f"/tmp/{job_id}_{i}.mp4"
 
-            raw = download(path)
-            if not raw:
-                raise Exception("Download failed")
+        with open(raw_path, "wb") as f:
+            f.write(raw)
 
-            with open(raw_path, "wb") as f:
-                f.write(raw)
+        temp.append(raw_path)
 
-            temp_files.append(raw_path)
+        duration = get_duration(raw_path)
 
-            duration = get_duration(raw_path)
+        silences = detect_silences(raw_path)
+        segments = build_segments(duration, silences)
 
-            silences = detect_silences(raw_path)
-            segments = build_segments(duration, silences)
+        for j, (start, end) in enumerate(segments):
 
-            print(f"[SEGMENTS] {len(segments)}", flush=True)
+            out = f"/tmp/{job_id}_{i}_{j}.mp4"
 
-            for j, (start, end) in enumerate(segments):
+            cut_video(raw_path, start, end, out)
 
-                out = f"/tmp/{job_id}_{i}_{j}.mp4"
+            outputs.append(out)
+            temp.append(out)
 
-                cut_video(raw_path, start, end, out)
+    final = f"/tmp/{job_id}.mp4"
 
-                outputs.append(out)
-                temp_files.append(out)
+    concat(outputs, final)
 
-        if not outputs:
-            raise Exception("No outputs")
+    with open(final, "rb") as f:
+        upload(f"{job_id}.mp4", f)
 
-        final_path = f"/tmp/{job_id}.mp4"
+    ack_job(job_id)
 
-        concat_final(outputs, final_path)
-
-        with open(final_path, "rb") as f:
-            upload(f"{job_id}.mp4", f)
-
-        url = public_url(f"{job_id}.mp4")
-
-        ack_job(job_id)
-
-        print("[DONE]", url, flush=True)
-
-    except Exception as e:
-        print("[ERROR]", repr(e), flush=True)
-        fail_job(job_id)
-
-    finally:
-        for f in temp_files:
-            try:
-                if os.path.exists(f):
-                    os.remove(f)
-            except:
-                pass
+    print("[DONE]", job_id, flush=True)
 
 
 # -------------------------
 # LOOP
 # -------------------------
-print("[WORKER START LOOP]", flush=True)
-
 while True:
-    try:
-        job = pop_job()
+    job = pop_job()
 
-        print("[WORKER DEBUG] received job =", job, flush=True)
+    if not job:
+        time.sleep(1)
+        continue
 
-        if not job:
-            time.sleep(2)
-            continue
-
-        print("[WORKER] processing job", job["id"], flush=True)
-
-
-
-        print("[RAW QUEUE SNAPSHOT]", r.lrange("jobs:queue", 0, -1), flush=True)    
-        
-        process(job)
-
-    except Exception as e:
-        print("[WORKER LOOP ERROR]", repr(e), flush=True)
-        time.sleep(2)
-
+    process(job)
