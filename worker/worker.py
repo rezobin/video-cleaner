@@ -115,16 +115,18 @@ def process(job):
 
 print("[WORKER START]")
 
-print("[DEBUG] polling queue...")
-job = pop_job()
-print("[DEBUG] job raw =", job)
-
-
 while True:
-    job = pop_job()
+    try:
+        print("[WORKER] polling...")
+        job = pop_job()
+        print("[WORKER] got job:", job)
 
-    if not job:
+        if not job:
+            time.sleep(2)
+            continue
+
+        process(job)
+
+    except Exception as e:
+        print("[WORKER FATAL LOOP ERROR]", e)
         time.sleep(2)
-        continue
-
-    process(job)
