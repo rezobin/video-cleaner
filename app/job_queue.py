@@ -3,9 +3,8 @@ import json
 import redis
 import time
 
-print("=== QUEUE INIT ===", flush=True)
-
 REDIS_URL = os.getenv("REDIS_URL")
+
 if not REDIS_URL:
     raise Exception("REDIS_URL missing")
 
@@ -14,9 +13,6 @@ r = redis.from_url(REDIS_URL, decode_responses=True)
 QUEUE_KEY = "jobs:queue"
 
 
-# -------------------------
-# PUSH
-# -------------------------
 def push_job(job: dict):
     job_id = job["id"]
 
@@ -28,12 +24,9 @@ def push_job(job: dict):
 
     r.rpush(QUEUE_KEY, job_id)
 
-    print("[PUSH] OK", job_id, flush=True)
+    print("[PUSH]", job_id, flush=True)
 
 
-# -------------------------
-# POP (SIMPLE BLOCKING)
-# -------------------------
 def pop_job():
     res = r.blpop(QUEUE_KEY, timeout=5)
 
@@ -41,6 +34,8 @@ def pop_job():
         return None
 
     _, job_id = res
+
+    print("[POP]", job_id, flush=True)
 
     data = r.hget(f"job:{job_id}", "data")
 
@@ -50,8 +45,6 @@ def pop_job():
     return json.loads(data)
 
 
-# -------------------------
-# ACK
-# -------------------------
 def ack_job(job_id):
     r.hset(f"job:{job_id}", "status", "done")
+    print("[ACK]", job_id, flush=True)

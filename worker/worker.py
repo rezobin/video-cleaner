@@ -2,9 +2,10 @@ import os
 import time
 import subprocess
 
-from job_queue import pop_job, ack_job
-from storage import download, upload, public_url
+from app.job_queue import pop_job, ack_job
+from app.db import update_job
 
+from storage import download, upload, public_url
 from audio.cut import detect_silences, build_segments
 from pipeline import cut_video
 
@@ -13,6 +14,9 @@ print("=== WORKER START ===", flush=True)
 print("REDIS =", os.getenv("REDIS_URL"), flush=True)
 
 
+# -------------------------
+# UTILS
+# -------------------------
 def get_duration(path):
     return float(subprocess.check_output([
         "ffprobe", "-v", "error",
@@ -45,61 +49,109 @@ def concat(files, output_path):
     ], check=True)
 
 
+# -------------------------
+# MAIN PROCESS
+# -------------------------
 def process(job):
 
     job_id = job["id"]
     inputs = job["input_paths"]
 
-    print("[JOB]", job_id, flush=True)
+    print("[JOB START]", job_id, flush=True)
+
+    # 🔥 UPDATE DB → processing
+    update_job(job_id, "processing")
 
     outputs = []
     temp = []
 
-    for i, path in enumerate(inputs):
+    try:
+        for i, path in enumerate(inputs):
 
-        raw = download(path)
+            print("[DOWNLOAD]", path, flush=True)
 
-        raw_path = f"/tmp/{job_id}_{i}.mp4"
+            raw = download(path)
 
-        with open(raw_path, "wb") as f:
-            f.write(raw)
+            if not raw:
+                raise Exception("Download failed")
 
-        temp.append(raw_path)
+            raw_path = f"/tmp/{job_id}_{i}.mp4"
 
-        duration = get_duration(raw_path)
+            with open(raw_path, "wb") as f:
+                f.write(raw)
 
-        silences = detect_silences(raw_path)
-        segments = build_segments(duration, silences)
+            temp.append(raw_path)
 
-        for j, (start, end) in enumerate(segments):
+            duration = get_duration(raw_path)
 
-            out = f"/tmp/{job_id}_{i}_{j}.mp4"
+            silences = detect_silences(raw_path)
+            segments = build_segments(duration, silences)
 
-            cut_video(raw_path, start, end, out)
+            print(f"[SEGMENTS] {len(segments)}", flush=True)
 
-            outputs.append(out)
-            temp.append(out)
+            for j, (start, end) in enumerate(segments):
 
-    final = f"/tmp/{job_id}.mp4"
+                out = f"/tmp/{job_id}_{i}_{j}.mp4"
 
-    concat(outputs, final)
+                cut_video(raw_path, start, end, out)
 
-    with open(final, "rb") as f:
-        upload(f"{job_id}.mp4", f)
+                outputs.append(out)
+                temp.append(out)
 
-    ack_job(job_id)
+        if not outputs:
+            raise Exception("No outputs generated")
 
-    print("[DONE]", job_id, flush=True)
+        final_path = f"/tmp/{job_id}.mp4"
+
+        print("[CONCAT FINAL]", flush=True)
+
+        concat(outputs, final_path)
+
+        print("[UPLOAD]", flush=True)
+
+        with open(final_path, "rb") as f:
+            upload(f"{job_id}.mp4", f)
+
+        url = public_url(f"{job_id}.mp4")
+
+        # 🔥 UPDATE DB → done
+        update_job(job_id, "done", url)
+
+        # 🔥 ACK REDIS
+        ack_job(job_id)
+
+        print("[DONE]", job_id, flush=True)
+
+    except Exception as e:
+        print("[ERROR]", repr(e), flush=True)
+
+        update_job(job_id, "failed")
+
+    finally:
+        for f in temp:
+            try:
+                if os.path.exists(f):
+                    os.remove(f)
+            except:
+                pass
 
 
 # -------------------------
 # LOOP
 # -------------------------
 while True:
-    job = pop_job()
 
-    if not job:
-        time.sleep(1)
-        continue
+    try:
+        job = pop_job()
 
-    process(job)
+        if not job:
+            time.sleep(1)
+            continue
+
+        print("[POP OK]", job, flush=True)
+
+        process(job)
+
+    except Exception as e:
+        print("[WORKER LOOP ERROR]", repr(e), flush=True)
+        time.sleep(2)

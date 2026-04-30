@@ -1,4 +1,3 @@
-import os
 import uuid
 import shutil
 
@@ -7,8 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.auth import get_user
 from app.supabase_client import supabase
-
-from worker.job_queue import push_job  # 👈 AJOUT
+from app.job_queue import push_job
 
 app = FastAPI()
 
@@ -18,9 +16,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-print("[REDIS DEBUG] id =", id(r), flush=True)
-print("[REDIS DEBUG] ping =", r.ping(), flush=True)
-print("[REDIS DEBUG] queue len =", r.llen("jobs:queue"), flush=True)
+
 
 @app.post("/upload")
 def upload(files: list[UploadFile] = File(...), user=Depends(get_user)):
@@ -45,7 +41,7 @@ def upload(files: list[UploadFile] = File(...), user=Depends(get_user)):
 
         inputs.append(path)
 
-    # DB (tracking)
+    # DB tracking
     supabase.table("jobs").insert({
         "id": job_id,
         "user_id": user["sub"],
@@ -53,13 +49,12 @@ def upload(files: list[UploadFile] = File(...), user=Depends(get_user)):
         "input_paths": inputs
     }).execute()
 
-    # 🔥 REDIS PUSH
+    # 🔥 PUSH REDIS
     push_job({
         "id": job_id,
         "input_paths": inputs
     })
 
-    print("[DEBUG] pushing job:", job_id)
-
+    print("[API] job created =", job_id, flush=True)
 
     return {"job_id": job_id}
