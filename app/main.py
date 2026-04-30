@@ -1,3 +1,4 @@
+import os
 import uuid
 import shutil
 
@@ -18,6 +19,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+print("[API] REDIS =", os.getenv("REDIS_URL"))
 
 @app.post("/upload")
 def upload(files: list[UploadFile] = File(...), user=Depends(get_user)):
@@ -57,5 +59,6 @@ def upload(files: list[UploadFile] = File(...), user=Depends(get_user)):
     })
 
     print("[DEBUG] pushing job:", job_id)
+
 
     return {"job_id": job_id}
