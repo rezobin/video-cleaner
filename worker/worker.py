@@ -1,13 +1,47 @@
 import time
 import os
+import subprocess
 
 from job_queue import pop_job, ack_job, fail_job
 from storage import download, upload, public_url
 
 from audio.cut import detect_silences, build_segments
-from pipeline import concat
+from pipeline import cut_video
 
-MAX_CONCURRENT_FILES = 3  # 🔥 limite CPU FFmpeg
+MAX_FILES = 3
+
+
+def get_duration(path):
+    return float(subprocess.check_output([
+        "ffprobe", "-v", "error",
+        "-show_entries", "format=duration",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        path
+    ]).decode().strip())
+
+
+def concat_final(files, output_path):
+
+    with open("/tmp/list.txt", "w") as f:
+        for v in files:
+            f.write(f"file '{v}'\n")
+
+    subprocess.run([
+        "ffmpeg", "-y",
+        "-f", "concat",
+        "-safe", "0",
+        "-i", "/tmp/list.txt",
+
+        "-c:v", "libx264",
+        "-preset", "veryfast",
+        "-crf", "22",
+
+        "-c:a", "aac",
+        "-movflags", "+faststart",
+
+        output_path
+    ], check=True)
+
 
 def process(job):
 
@@ -19,7 +53,7 @@ def process(job):
     temp_files = []
 
     try:
-        final_outputs = []
+        outputs = []
 
         for i, path in enumerate(inputs):
 
@@ -34,43 +68,28 @@ def process(job):
 
             temp_files.append(raw_path)
 
-            duration = float(os.popen(
-                f"ffprobe -v error -show_entries format=duration "
-                f"-of default=noprint_wrappers=1:nokey=1 {raw_path}"
-            ).read().strip())
+            duration = get_duration(raw_path)
 
             silences = detect_silences(raw_path)
             segments = build_segments(duration, silences)
 
-            if not segments:
-                continue
+            print(f"[SEGMENTS] {len(segments)}")
 
-            formatted_segments = [
-                (raw_path, start, end)
-                for start, end in segments
-            ]
+            for j, (start, end) in enumerate(segments):
 
-            output_path = f"/tmp/{job_id}_{i}_out.mp4"
+                out = f"/tmp/{job_id}_{i}_{j}.mp4"
 
-            concat(formatted_segments, output_path)
+                cut_video(raw_path, start, end, out)
 
-            final_outputs.append(output_path)
-            temp_files.append(output_path)
+                outputs.append(out)
+                temp_files.append(out)
 
-        if not final_outputs:
-            raise Exception("No output generated")
+        if not outputs:
+            raise Exception("No outputs")
 
         final_path = f"/tmp/{job_id}.mp4"
 
-        with open("/tmp/list.txt", "w") as f:
-            for v in final_outputs:
-                f.write(f"file '{v}'\n")
-
-        os.system(f"""
-            ffmpeg -y -f concat -safe 0 -i /tmp/list.txt \
-            -c:v libx264 -preset veryfast -crf 22 \
-            -c:a aac -movflags +faststart {final_path}
-        """)
+        concat_final(outputs, final_path)
 
         with open(final_path, "rb") as f:
             upload(f"{job_id}.mp4", f)

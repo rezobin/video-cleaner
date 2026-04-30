@@ -1,13 +1,12 @@
 import subprocess
 
-THRESHOLD = "-35dB"
-MIN_SILENCE = 0.20
-PADDING = 0.12
-MIN_SEGMENT = 0.5
+THRESHOLD = "-38dB"
+MIN_SILENCE = 0.25
+PADDING = 0.15
+MIN_SEGMENT = 0.6
 
 
 def detect_silences(video_path):
-
     cmd = [
         "ffmpeg",
         "-hide_banner",
@@ -28,7 +27,8 @@ def detect_silences(video_path):
                 starts.append(float(line.split("silence_start: ")[1]))
             except:
                 pass
-        elif "silence_end" in line:
+
+        if "silence_end" in line:
             try:
                 ends.append(float(line.split("silence_end: ")[1].split(" ")[0]))
             except:
@@ -38,7 +38,6 @@ def detect_silences(video_path):
 
 
 def build_segments(duration, silences):
-
     segments = []
     cursor = 0.0
 
@@ -55,7 +54,4 @@ def build_segments(duration, silences):
     if cursor < duration:
         segments.append((cursor, duration))
 
-    return [
-        (s, e) for s, e in segments
-        if (e - s) >= MIN_SEGMENT
-    ]
+    return [(s, e) for s, e in segments if (e - s) >= MIN_SEGMENT]
