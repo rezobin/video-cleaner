@@ -1,15 +1,13 @@
 import time
 import os
 
-from jobs import update, get_job
-from storage import upload, public_url, get_signed_url
+from jobs import update
+from storage import upload, public_url
 
-from audio.cut import (
-    detect_silences,
-    build_segments
-)
-
+from audio.cut import detect_silences, build_segments
 from pipeline import concat
+
+from queue import pop_job_safe, ack_job
 
 
 MAX_INPUT_FILES = 10
@@ -22,54 +20,39 @@ def process(job):
 
     print(f"[WORKER] START {job_id}")
 
-    temp_files = []
-
     try:
         update(job_id, "processing")
 
         all_segments = []
 
-        for i, path in enumerate(inputs):
+        for path in inputs:
 
-            print(f"[INPUT] {path}")
-
-            # 🔥 on récupère une URL signée (pas de download)
-            video_url = get_signed_url(path)
-
-            # durée vidéo via ffprobe (URL directe)
             duration = float(os.popen(
                 f"ffprobe -v error -show_entries format=duration "
-                f"-of default=noprint_wrappers=1:nokey=1 '{video_url}'"
+                f"-of default=noprint_wrappers=1:nokey=1 '{path}'"
             ).read().strip())
 
-            # détection silence directement sur la vidéo
-            silences = detect_silences(video_url)
-
+            silences = detect_silences(path)
             segments = build_segments(duration, silences)
 
-            print(f"[SEGMENTS] video {i}: {len(segments)}")
-
             for (start, end) in segments:
-                all_segments.append((video_url, start, end))
+                all_segments.append((path, start, end))
 
         if not all_segments:
             raise Exception("No segments")
 
-        final_path = f"/tmp/{job_id}.mp4"
-        temp_files.append(final_path)
+        output_path = f"/tmp/{job_id}.mp4"
 
-        print("[FFMPEG GLOBAL CONCAT]")
+        concat(all_segments, output_path)
 
-        concat(all_segments, final_path)
-
-        print("[UPLOAD]")
-
-        with open(final_path, "rb") as f:
+        with open(output_path, "rb") as f:
             upload(f"{job_id}.mp4", f)
 
         url = public_url(f"{job_id}.mp4")
 
         update(job_id, "done", url)
+
+        ack_job(job_id)
 
         print("[DONE]", url)
 
@@ -77,23 +60,12 @@ def process(job):
         print("[ERROR]", e)
         update(job_id, "failed")
 
-    finally:
-        print("[CLEANUP]")
-        for f in temp_files:
-            try:
-                if os.path.exists(f):
-                    os.remove(f)
-            except:
-                pass
-
 
 print("[WORKER START]")
 
 while True:
-    job = get_job()
+    job = pop_job_safe()
 
-    if not job:
-        time.sleep(2)
-        continue
+    print("[JOB RECEIVED]", job["id"])
 
     process(job)

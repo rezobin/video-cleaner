@@ -1,11 +1,13 @@
 import uuid
 import shutil
 
-from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
+from fastapi import FastAPI, UploadFile, File, Depends
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.auth import get_user
 from app.supabase_client import supabase
+
+from queue import push_job  # 👈 AJOUT
 
 app = FastAPI()
 
@@ -16,24 +18,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# -------------------------
-# HEALTHCHECK
-# -------------------------
-
-@app.get("/")
-def root():
-    return {"status": "ok"}
-
-# -------------------------
-# UPLOAD
-# -------------------------
 
 @app.post("/upload")
 def upload(files: list[UploadFile] = File(...), user=Depends(get_user)):
 
     job_id = str(uuid.uuid4())
-
-    print("[UPLOAD] job created:", job_id)
 
     inputs = []
 
@@ -53,52 +42,18 @@ def upload(files: list[UploadFile] = File(...), user=Depends(get_user)):
 
         inputs.append(path)
 
-    res = supabase.table("jobs").insert({
+    # DB (tracking)
+    supabase.table("jobs").insert({
         "id": job_id,
         "user_id": user["sub"],
-        "status": "queued"
+        "status": "queued",
         "input_paths": inputs
     }).execute()
 
-    print("[UPLOAD] DB insert response:", res)
+    # 🔥 REDIS PUSH
+    push_job({
+        "id": job_id,
+        "input_paths": inputs
+    })
 
     return {"job_id": job_id}
-
-# -------------------------
-# STATUS
-# -------------------------
-
-@app.get("/status/{job_id}")
-def status(job_id: str):
-
-    res = supabase.table("jobs").select("*").eq("id", job_id).single().execute()
-
-    if not res.data:
-        raise HTTPException(404, "Job not found")
-
-    return {
-        "status": res.data["status"],
-        "job_id": res.data["id"]
-    }
-
-
-# -------------------------
-# DOWNLOAD (IMPORTANT MANQUANT)
-# -------------------------
-
-@app.get("/download/{job_id}")
-def download(job_id: str, user=Depends(get_user)):
-
-    res = supabase.table("jobs").select("*").eq("id", job_id).single().execute()
-    job = res.data
-
-    if not job:
-        raise HTTPException(404)
-
-    if job["user_id"] != user["sub"]:
-        raise HTTPException(403)
-
-    return {
-        "output_url": job.get("output_url"),
-        "status": job["status"]
-    }
