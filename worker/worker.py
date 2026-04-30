@@ -5,7 +5,7 @@ from jobs import update, get_job
 from storage import download, upload, public_url
 
 from audio.cut import (
-    detect_silences_ffmpeg,
+    detect_silences,
     build_segments
 )
 
@@ -49,7 +49,7 @@ def process(job):
             ).read().strip())
 
             print("[SILENCE DETECTION]")
-            silences = detect_silences_ffmpeg(raw_path)
+            silences = detect_silences(raw_path)
 
             segments = build_segments(duration, silences)
 
