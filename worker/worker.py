@@ -6,7 +6,8 @@ from storage import download, upload, public_url
 
 from audio.cut import (
     detect_silences,
-    build_segments
+    build_segments,
+    extract_audio
 )
 
 from pipeline import concat
@@ -29,6 +30,7 @@ def process(job):
         for i, path in enumerate(inputs):
 
             raw_path = f"/tmp/{job_id}_{i}.mp4"
+            audio_path = f"/tmp/{job_id}_{i}.wav"
 
             print("[DL]", path)
 
@@ -42,6 +44,10 @@ def process(job):
 
             temp_files.append(raw_path)
 
+            # extract audio (IMPORTANT)
+            extract_audio(raw_path, audio_path)
+            temp_files.append(audio_path)
+
             # durée vidéo
             duration = float(os.popen(
                 f"ffprobe -v error -show_entries format=duration "
@@ -49,7 +55,7 @@ def process(job):
             ).read().strip())
 
             print("[SILENCE DETECTION]")
-            silences = detect_silences(raw_path)
+            silences = detect_silences(audio_path)
 
             segments = build_segments(duration, silences)
 
@@ -72,7 +78,8 @@ def process(job):
 
         final_path = f"/tmp/{job_id}.mp4"
 
-        # concat final simple
+        print("[FINAL CONCAT]")
+
         with open("/tmp/list.txt", "w") as f:
             for v in all_outputs:
                 f.write(f"file '{v}'\n")

@@ -1,42 +1,57 @@
 import subprocess
 
-def cut_video(input_path, start, end, output_path):
 
+def cut_video(input_path, start, end, output_path):
+    # (optionnel, pas utilisé ici)
     subprocess.run([
         "ffmpeg", "-y",
-
         "-ss", str(start),
         "-to", str(end),
         "-i", input_path,
-
-        # IMPORTANT: copy codecs (NO RE-ENCODE ici)
         "-c", "copy",
-
         output_path
     ], check=True)
 
 
-def concat(video_list, output_path):
+def concat(input_path, segments, output_path):
 
-    list_file = "/tmp/list.txt"
+    if not segments:
+        raise Exception("No segments provided")
 
-    with open(list_file, "w") as f:
-        for v in video_list:
-            f.write(f"file '{v}'\n")
+    filters = []
+    v_inputs = []
+    a_inputs = []
 
-    subprocess.run([
+    for i, (start, end) in enumerate(segments):
+
+        filters.append(
+            f"[0:v]trim=start={start}:end={end},setpts=PTS-STARTPTS[v{i}];"
+        )
+        filters.append(
+            f"[0:a]atrim=start={start}:end={end},asetpts=PTS-STARTPTS[a{i}];"
+        )
+
+        v_inputs.append(f"[v{i}]")
+        a_inputs.append(f"[a{i}]")
+
+    filter_complex = "".join(filters) + \
+        "".join(v_inputs) + "".join(a_inputs) + \
+        f"concat=n={len(segments)}:v=1:a=1[outv][outa]"
+
+    cmd = [
         "ffmpeg", "-y",
+        "-i", input_path,
+        "-filter_complex", filter_complex,
+        "-map", "[outv]",
+        "-map", "[outa]",
 
-        "-f", "concat",
-        "-safe", "0",
-        "-i", list_file,
-
-        # ONE SINGLE ENCODE ONLY HERE
         "-c:v", "libx264",
         "-preset", "veryfast",
-        "-crf", "22",
+        "-crf", "20",
 
         "-c:a", "aac",
 
         output_path
-    ], check=True)
+    ]
+
+    subprocess.run(cmd, check=True)

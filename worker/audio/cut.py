@@ -36,9 +36,15 @@ def detect_silences(audio_path):
 
     for line in result.stderr.split("\n"):
         if "silence_start" in line:
-            starts.append(float(line.split("silence_start: ")[1]))
+            try:
+                starts.append(float(line.split("silence_start: ")[1]))
+            except:
+                pass
         elif "silence_end" in line:
-            ends.append(float(line.split("silence_end: ")[1].split(" ")[0]))
+            try:
+                ends.append(float(line.split("silence_end: ")[1].split(" ")[0]))
+            except:
+                pass
 
     return list(zip(starts, ends))
 
