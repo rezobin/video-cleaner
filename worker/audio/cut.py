@@ -2,15 +2,28 @@ import subprocess
 
 THRESHOLD = "-38dB"
 MIN_SILENCE = 0.25
-PADDING = 0.12
-MIN_SEGMENT = 0.5
+PADDING = 0.18
+MIN_SEGMENT = 0.6
 
 
-def detect_silences_ffmpeg(input_path: str):
+def extract_audio(input_path, output_path):
+    subprocess.run([
+        "ffmpeg", "-y",
+        "-i", input_path,
+        "-vn",
+        "-ac", "1",
+        "-ar", "16000",
+        "-c:a", "pcm_s16le",
+        output_path
+    ], check=True)
+
+
+def detect_silences(audio_path):
 
     cmd = [
         "ffmpeg",
-        "-i", input_path,
+        "-hide_banner",
+        "-i", audio_path,
         "-af", f"silencedetect=noise={THRESHOLD}:d={MIN_SILENCE}",
         "-f", "null",
         "-"
@@ -18,27 +31,16 @@ def detect_silences_ffmpeg(input_path: str):
 
     result = subprocess.run(cmd, stderr=subprocess.PIPE, text=True)
 
-    silences = []
-
-    start = None
+    starts = []
+    ends = []
 
     for line in result.stderr.split("\n"):
-
         if "silence_start" in line:
-            try:
-                start = float(line.split("silence_start: ")[1])
-            except:
-                pass
+            starts.append(float(line.split("silence_start: ")[1]))
+        elif "silence_end" in line:
+            ends.append(float(line.split("silence_end: ")[1].split(" ")[0]))
 
-        if "silence_end" in line and start is not None:
-            try:
-                end = float(line.split("silence_end: ")[1].split(" ")[0])
-                silences.append((start, end))
-                start = None
-            except:
-                pass
-
-    return silences
+    return list(zip(starts, ends))
 
 
 def build_segments(duration, silences):

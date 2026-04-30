@@ -1,42 +1,42 @@
 import subprocess
 
+def cut_video(input_path, start, end, output_path):
 
-def concat_filter_complex(input_path, segments, output_path):
+    subprocess.run([
+        "ffmpeg", "-y",
 
-    filter_parts = []
-    inputs = []
+        "-ss", str(start),
+        "-to", str(end),
+        "-i", input_path,
 
-    for i, (start, end) in enumerate(segments):
+        # IMPORTANT: copy codecs (NO RE-ENCODE ici)
+        "-c", "copy",
 
-        inputs.append("-ss")
-        inputs.append(str(start))
-        inputs.append("-to")
-        inputs.append(str(end))
-        inputs.append("-i")
-        inputs.append(input_path)
+        output_path
+    ], check=True)
 
-        filter_parts.append(f"[{i}:v:0][{i}:a:0]")
 
-    concat_filter = "".join(filter_parts) + f"concat=n={len(segments)}:v=1:a=1[outv][outa]"
+def concat(video_list, output_path):
 
-    cmd = ["ffmpeg", "-y"]
+    list_file = "/tmp/list.txt"
 
-    cmd += inputs
+    with open(list_file, "w") as f:
+        for v in video_list:
+            f.write(f"file '{v}'\n")
 
-    cmd += [
-        "-filter_complex", concat_filter,
-        "-map", "[outv]",
-        "-map", "[outa]",
+    subprocess.run([
+        "ffmpeg", "-y",
 
+        "-f", "concat",
+        "-safe", "0",
+        "-i", list_file,
+
+        # ONE SINGLE ENCODE ONLY HERE
         "-c:v", "libx264",
         "-preset", "veryfast",
-        "-crf", "20",
+        "-crf", "22",
 
         "-c:a", "aac",
 
-        "-movflags", "+faststart",
-
         output_path
-    ]
-
-    subprocess.run(cmd, check=True)
+    ], check=True)
