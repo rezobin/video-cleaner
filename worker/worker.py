@@ -7,7 +7,7 @@ from storage import upload, public_url
 from audio.cut import detect_silences, build_segments
 from pipeline import concat
 
-from queue import pop_job_safe, ack_job
+from job_queue import pop_job_safe, ack_job
 
 
 MAX_INPUT_FILES = 10
