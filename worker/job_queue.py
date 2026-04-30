@@ -5,54 +5,70 @@ import time
 
 REDIS_URL = os.getenv("REDIS_URL")
 
+if not REDIS_URL:
+    raise Exception("REDIS_URL missing")
+
 r = redis.from_url(REDIS_URL, decode_responses=True)
 
-QUEUE = "video_jobs"
-PROCESSING = "video_processing"
-
+QUEUE_KEY = "jobs:queue"
+PROCESSING_KEY = "jobs:processing"
+LOCK_TTL = 300  # 5 min safety
 
 # -------------------------
-# PRODUCER
+# PUSH JOB
 # -------------------------
 def push_job(job: dict):
-    r.lpush(QUEUE, json.dumps(job))
+    job_id = job["id"]
+
+    r.hset(f"job:{job_id}", mapping={
+        "data": json.dumps(job),
+        "status": "queued",
+        "ts": str(time.time())
+    })
+
+    r.lpush(QUEUE_KEY, job_id)
 
 
 # -------------------------
-# CONSUMER SAFE (ATOMIC)
+# GET JOB (ATOMIC)
 # -------------------------
-def pop_job_safe():
+def pop_job():
+    job_id = r.brpoplpush(QUEUE_KEY, PROCESSING_KEY, timeout=5)
 
-    while True:
-        # atomique : move queue → processing
-        job = r.brpoplpush(QUEUE, PROCESSING, timeout=5)
+    if not job_id:
+        return None
 
-        if job:
-            return json.loads(job)
+    data = r.hget(f"job:{job_id}", "data")
 
-        time.sleep(0.2)
+    if not data:
+        return None
 
-
-# -------------------------
-# ACK (SUCCESS)
-# -------------------------
-def ack_job(job_id: str):
-    items = r.lrange(PROCESSING, 0, -1)
-
-    for item in items:
-        job = json.loads(item)
-        if job["id"] == job_id:
-            r.lrem(PROCESSING, 1, item)
-            return
+    return json.loads(data)
 
 
 # -------------------------
-# FAILSAFE (OPTIONNEL FUTUR)
+# ACK SUCCESS
 # -------------------------
-def requeue_stuck_jobs():
-    # si worker crash → requeue manuel possible
-    items = r.lrange(PROCESSING, 0, -1)
+def ack_job(job_id):
+    r.hset(f"job:{job_id}", "status", "done")
+    r.lrem(PROCESSING_KEY, 0, job_id)
 
-    for item in items:
-        r.lpush(QUEUE, item)
-        r.lrem(PROCESSING, 1, item)
+
+# -------------------------
+# FAIL JOB (RETRY SAFE)
+# -------------------------
+def fail_job(job_id):
+    r.hset(f"job:{job_id}", "status", "queued")
+    r.lrem(PROCESSING_KEY, 0, job_id)
+    r.lpush(QUEUE_KEY, job_id)
+
+
+# -------------------------
+# CLEANUP STUCK JOBS (optional safety)
+# -------------------------
+def requeue_stuck():
+    stuck = r.lrange(PROCESSING_KEY, 0, -1)
+
+    for job_id in stuck:
+        r.lrem(PROCESSING_KEY, 0, job_id)
+        r.lpush(QUEUE_KEY, job_id)
