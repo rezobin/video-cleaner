@@ -5,7 +5,7 @@ from job_queue import pop_job, ack_job, fail_job
 from storage import download, upload, public_url
 
 from audio.cut import detect_silences, build_segments
-from pipeline import cut_video, concat
+from pipeline import concat
 
 MAX_CONCURRENT_FILES = 3  # 🔥 limite CPU FFmpeg
 
@@ -45,9 +45,14 @@ def process(job):
             if not segments:
                 continue
 
+            formatted_segments = [
+                (raw_path, start, end)
+                for start, end in segments
+            ]
+
             output_path = f"/tmp/{job_id}_{i}_out.mp4"
 
-            concat(raw_path, segments, output_path)
+            concat(formatted_segments, output_path)
 
             final_outputs.append(output_path)
             temp_files.append(output_path)

@@ -5,6 +5,55 @@ def concat(segments, output_path):
 
     inputs = []
     filter_parts = []
+    v_streams = []
+    a_streams = []
+
+    valid = 0
+
+    for i, (path, start, end) in enumerate(segments):
+
+        inputs.extend(["-i", path])
+
+        filter_parts.append(
+            f"[{i}:v]trim=start={start}:end={end},setpts=PTS-STARTPTS[v{i}];"
+        )
+
+        filter_parts.append(
+            f"[{i}:a]atrim=start={start}:end={end},asetpts=PTS-STARTPTS[a{i}];"
+        )
+
+        v_streams.append(f"[v{i}]")
+        a_streams.append(f"[a{i}]")
+
+        valid += 1
+
+    if valid == 0:
+        raise Exception("No valid segments")
+
+    filter_complex = (
+        "".join(filter_parts)
+        + "".join(v_streams)
+        + "".join(a_streams)
+        + f"concat=n={valid}:v=1:a=1[outv][outa]"
+    )
+
+    cmd = [
+        "ffmpeg", "-y",
+        *inputs,
+        "-filter_complex", filter_complex,
+        "-map", "[outv]",
+        "-map", "[outa]",
+        "-c:v", "libx264",
+        "-preset", "ultrafast",
+        "-crf", "23",
+        "-c:a", "aac",
+        output_path
+    ]
+
+    subprocess.run(cmd, check=True)
+
+    inputs = []
+    filter_parts = []
     v_parts = []
     a_parts = []
 
