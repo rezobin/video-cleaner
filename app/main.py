@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.auth import get_user
 from app.supabase_client import supabase
 
-from queue import push_job  # 👈 AJOUT
+from worker.job_queue import push_job  # 👈 AJOUT
 
 app = FastAPI()
 
