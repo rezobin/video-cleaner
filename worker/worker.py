@@ -1,9 +1,5 @@
 import time
 import os
-
-print("=== WORKER BOOT ===", flush=True)
-print("REDIS_URL =", os.getenv("REDIS_URL"), flush=True)
-
 import subprocess
 
 from job_queue import pop_job, ack_job, fail_job
@@ -12,9 +8,14 @@ from storage import download, upload, public_url
 from audio.cut import detect_silences, build_segments
 from pipeline import cut_video
 
-MAX_FILES = 3
+
+print("=== WORKER BOOT ===", flush=True)
+print("REDIS_URL =", os.getenv("REDIS_URL"), flush=True)
 
 
+# -------------------------
+# UTILS
+# -------------------------
 def get_duration(path):
     return float(subprocess.check_output([
         "ffprobe", "-v", "error",
@@ -47,12 +48,15 @@ def concat_final(files, output_path):
     ], check=True)
 
 
+# -------------------------
+# PROCESS JOB
+# -------------------------
 def process(job):
 
     job_id = job["id"]
     inputs = job["input_paths"]
 
-    print(f"[WORKER] START {job_id}")
+    print(f"[WORKER] START {job_id}", flush=True)
 
     temp_files = []
 
@@ -77,7 +81,7 @@ def process(job):
             silences = detect_silences(raw_path)
             segments = build_segments(duration, silences)
 
-            print(f"[SEGMENTS] {len(segments)}")
+            print(f"[SEGMENTS] {len(segments)}", flush=True)
 
             for j, (start, end) in enumerate(segments):
 
@@ -102,10 +106,10 @@ def process(job):
 
         ack_job(job_id)
 
-        print("[DONE]", url)
+        print("[DONE]", url, flush=True)
 
     except Exception as e:
-        print("[ERROR]", e)
+        print("[ERROR]", repr(e), flush=True)
         fail_job(job_id)
 
     finally:
@@ -117,30 +121,25 @@ def process(job):
                 pass
 
 
-
-print("[WORKER START]")
-print("REDIS_URL =", os.getenv("REDIS_URL"))
+# -------------------------
+# LOOP
+# -------------------------
+print("[WORKER START LOOP]", flush=True)
 
 while True:
     try:
-        print("[WORKER] polling Redis...")
-
         job = pop_job()
 
-        job = pop_job()
-
-        print("[WORKER DEBUG] received job =", job)
+        print("[WORKER DEBUG] received job =", job, flush=True)
 
         if not job:
             time.sleep(2)
             continue
 
-        print("[WORKER] raw job =", job)
-
-        print(f"[WORKER] processing job {job.get('id')}")
+        print("[WORKER] processing job", job["id"], flush=True)
 
         process(job)
 
     except Exception as e:
-        print("[WORKER LOOP ERROR]", repr(e))
+        print("[WORKER LOOP ERROR]", repr(e), flush=True)
         time.sleep(2)

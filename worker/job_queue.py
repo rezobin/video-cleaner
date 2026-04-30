@@ -8,18 +8,15 @@ print("=== QUEUE MODULE LOADED ===", flush=True)
 REDIS_URL = os.getenv("REDIS_URL")
 print("REDIS URL EXISTS:", bool(REDIS_URL), flush=True)
 
-r = redis.from_url(REDIS_URL, decode_responses=True)
-
-print("REDIS CONNECTED OK", flush=True)
-
 if not REDIS_URL:
     raise Exception("REDIS_URL missing")
 
 r = redis.from_url(REDIS_URL, decode_responses=True)
+print("REDIS CONNECTED OK", flush=True)
 
 QUEUE_KEY = "jobs:queue"
 PROCESSING_KEY = "jobs:processing"
-LOCK_TTL = 300  # 5 min safety
+
 
 # -------------------------
 # PUSH JOB
@@ -35,17 +32,16 @@ def push_job(job: dict):
 
     r.lpush(QUEUE_KEY, job_id)
 
-    print("[PUSH] job pushed =", job["id"], flush=True)
-    print("[PUSH] queue key =", QUEUE_KEY, flush=True)
+    print("[PUSH] job pushed =", job_id, flush=True)
 
 
 # -------------------------
-# GET JOB (ATOMIC)
+# POP JOB (ATOMIC)
 # -------------------------
 def pop_job():
     print("[QUEUE] waiting job...", flush=True)
 
-    job_id = r.brpoplpush("jobs:queue", "jobs:processing", timeout=5)
+    job_id = r.brpoplpush(QUEUE_KEY, PROCESSING_KEY, timeout=5)
 
     print("[QUEUE] raw job_id =", job_id, flush=True)
 
@@ -63,7 +59,7 @@ def pop_job():
 
 
 # -------------------------
-# ACK SUCCESS
+# ACK
 # -------------------------
 def ack_job(job_id):
     r.hset(f"job:{job_id}", "status", "done")
@@ -71,20 +67,9 @@ def ack_job(job_id):
 
 
 # -------------------------
-# FAIL JOB (RETRY SAFE)
+# FAIL
 # -------------------------
 def fail_job(job_id):
     r.hset(f"job:{job_id}", "status", "queued")
     r.lrem(PROCESSING_KEY, 0, job_id)
     r.lpush(QUEUE_KEY, job_id)
-
-
-# -------------------------
-# CLEANUP STUCK JOBS (optional safety)
-# -------------------------
-def requeue_stuck():
-    stuck = r.lrange(PROCESSING_KEY, 0, -1)
-
-    for job_id in stuck:
-        r.lrem(PROCESSING_KEY, 0, job_id)
-        r.lpush(QUEUE_KEY, job_id)
