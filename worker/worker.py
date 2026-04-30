@@ -9,7 +9,7 @@ from audio.cut import (
     build_segments
 )
 
-from pipeline import concat_filter_complex
+from pipeline import concat
 
 
 def process(job):
@@ -62,7 +62,7 @@ def process(job):
 
             print("[FILTER COMPLEX CUT]")
 
-            concat_filter_complex(raw_path, segments, output_path)
+            concat(raw_path, segments, output_path)
 
             all_outputs.append(output_path)
             temp_files.append(output_path)
