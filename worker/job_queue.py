@@ -3,7 +3,14 @@ import json
 import redis
 import time
 
+print("=== QUEUE MODULE LOADED ===", flush=True)
+
 REDIS_URL = os.getenv("REDIS_URL")
+print("REDIS URL EXISTS:", bool(REDIS_URL), flush=True)
+
+r = redis.from_url(REDIS_URL, decode_responses=True)
+
+print("REDIS CONNECTED OK", flush=True)
 
 if not REDIS_URL:
     raise Exception("REDIS_URL missing")
@@ -33,16 +40,18 @@ def push_job(job: dict):
 # GET JOB (ATOMIC)
 # -------------------------
 def pop_job():
-    job_id = r.brpoplpush(QUEUE_KEY, PROCESSING_KEY, timeout=5)
+    print("[QUEUE] waiting job...", flush=True)
 
-    print("[QUEUE DEBUG] pop_job raw job_id =", job_id)
+    job_id = r.brpoplpush("jobs:queue", "jobs:processing", timeout=5)
+
+    print("[QUEUE] raw job_id =", job_id, flush=True)
 
     if not job_id:
         return None
 
     data = r.hget(f"job:{job_id}", "data")
 
-    print("[QUEUE DEBUG] job data =", data)
+    print("[QUEUE] job data exists =", bool(data), flush=True)
 
     if not data:
         return None

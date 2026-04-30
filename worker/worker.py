@@ -1,5 +1,9 @@
 import time
 import os
+
+print("=== WORKER BOOT ===", flush=True)
+print("REDIS_URL =", os.getenv("REDIS_URL"), flush=True)
+
 import subprocess
 
 from job_queue import pop_job, ack_job, fail_job
