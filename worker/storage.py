@@ -14,3 +14,10 @@ def upload(path: str, file_obj):
 
 def public_url(path: str):
     return supabase.storage.from_("videos").get_public_url(path)
+
+
+import requests
+
+def get_signed_url(path: str):
+    res = supabase.storage.from_("videos").create_signed_url(path, 3600)
+    return res["signedURL"]

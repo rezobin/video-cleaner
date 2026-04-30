@@ -1,53 +1,41 @@
 import subprocess
 
 
-def cut_video(input_path, start, end, output_path):
-    # (optionnel, pas utilisé ici)
-    subprocess.run([
-        "ffmpeg", "-y",
-        "-ss", str(start),
-        "-to", str(end),
-        "-i", input_path,
-        "-c", "copy",
-        output_path
-    ], check=True)
+def concat(segments, output_path):
 
+    inputs = []
+    filter_parts = []
+    v_parts = []
+    a_parts = []
 
-def concat(input_path, segments, output_path):
+    for i, (path, start, end) in enumerate(segments):
 
-    if not segments:
-        raise Exception("No segments provided")
+        inputs.extend(["-i", path])
 
-    filters = []
-    v_inputs = []
-    a_inputs = []
-
-    for i, (start, end) in enumerate(segments):
-
-        filters.append(
-            f"[0:v]trim=start={start}:end={end},setpts=PTS-STARTPTS[v{i}];"
+        filter_parts.append(
+            f"[{i}:v]trim=start={start}:end={end},setpts=PTS-STARTPTS[v{i}];"
         )
-        filters.append(
-            f"[0:a]atrim=start={start}:end={end},asetpts=PTS-STARTPTS[a{i}];"
+        filter_parts.append(
+            f"[{i}:a]atrim=start={start}:end={end},asetpts=PTS-STARTPTS[a{i}];"
         )
 
-        v_inputs.append(f"[v{i}]")
-        a_inputs.append(f"[a{i}]")
+        v_parts.append(f"[v{i}]")
+        a_parts.append(f"[a{i}]")
 
-    filter_complex = "".join(filters) + \
-        "".join(v_inputs) + "".join(a_inputs) + \
+    filter_complex = "".join(filter_parts) + \
+        "".join(v_parts) + "".join(a_parts) + \
         f"concat=n={len(segments)}:v=1:a=1[outv][outa]"
 
     cmd = [
         "ffmpeg", "-y",
-        "-i", input_path,
+        *inputs,
         "-filter_complex", filter_complex,
         "-map", "[outv]",
         "-map", "[outa]",
 
         "-c:v", "libx264",
-        "-preset", "veryfast",
-        "-crf", "20",
+        "-preset", "ultrafast",   # 🔥 gain immédiat
+        "-crf", "23",
 
         "-c:a", "aac",
 

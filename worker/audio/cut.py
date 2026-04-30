@@ -1,29 +1,17 @@
 import subprocess
 
-THRESHOLD = "-38dB"
-MIN_SILENCE = 0.25
-PADDING = 0.18
-MIN_SEGMENT = 0.6
+THRESHOLD = "-35dB"
+MIN_SILENCE = 0.20
+PADDING = 0.12
+MIN_SEGMENT = 0.5
 
 
-def extract_audio(input_path, output_path):
-    subprocess.run([
-        "ffmpeg", "-y",
-        "-i", input_path,
-        "-vn",
-        "-ac", "1",
-        "-ar", "16000",
-        "-c:a", "pcm_s16le",
-        output_path
-    ], check=True)
-
-
-def detect_silences(audio_path):
+def detect_silences(video_path):
 
     cmd = [
         "ffmpeg",
         "-hide_banner",
-        "-i", audio_path,
+        "-i", video_path,
         "-af", f"silencedetect=noise={THRESHOLD}:d={MIN_SILENCE}",
         "-f", "null",
         "-"

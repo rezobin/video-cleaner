@@ -2,21 +2,23 @@ import time
 import os
 
 from jobs import update, get_job
-from storage import download, upload, public_url
+from storage import upload, public_url, get_signed_url
 
 from audio.cut import (
     detect_silences,
-    build_segments,
-    extract_audio
+    build_segments
 )
 
 from pipeline import concat
 
 
+MAX_INPUT_FILES = 10
+
+
 def process(job):
 
     job_id = job["id"]
-    inputs = job["input_paths"]
+    inputs = job["input_paths"][:MAX_INPUT_FILES]
 
     print(f"[WORKER] START {job_id}")
 
@@ -25,70 +27,42 @@ def process(job):
     try:
         update(job_id, "processing")
 
-        all_outputs = []
+        all_segments = []
 
         for i, path in enumerate(inputs):
 
-            raw_path = f"/tmp/{job_id}_{i}.mp4"
-            audio_path = f"/tmp/{job_id}_{i}.wav"
+            print(f"[INPUT] {path}")
 
-            print("[DL]", path)
+            # 🔥 on récupère une URL signée (pas de download)
+            video_url = get_signed_url(path)
 
-            raw = download(path)
-
-            if not raw:
-                raise Exception("Download failed")
-
-            with open(raw_path, "wb") as f:
-                f.write(raw)
-
-            temp_files.append(raw_path)
-
-            # extract audio (IMPORTANT)
-            extract_audio(raw_path, audio_path)
-            temp_files.append(audio_path)
-
-            # durée vidéo
+            # durée vidéo via ffprobe (URL directe)
             duration = float(os.popen(
                 f"ffprobe -v error -show_entries format=duration "
-                f"-of default=noprint_wrappers=1:nokey=1 {raw_path}"
+                f"-of default=noprint_wrappers=1:nokey=1 '{video_url}'"
             ).read().strip())
 
-            print("[SILENCE DETECTION]")
-            silences = detect_silences(audio_path)
+            # détection silence directement sur la vidéo
+            silences = detect_silences(video_url)
 
             segments = build_segments(duration, silences)
 
-            print(f"[SEGMENTS] {len(segments)}")
+            print(f"[SEGMENTS] video {i}: {len(segments)}")
 
-            if len(segments) == 0:
-                continue
+            for (start, end) in segments:
+                all_segments.append((video_url, start, end))
 
-            output_path = f"/tmp/{job_id}_{i}_out.mp4"
-
-            print("[FILTER COMPLEX CUT]")
-
-            concat(raw_path, segments, output_path)
-
-            all_outputs.append(output_path)
-            temp_files.append(output_path)
-
-        if not all_outputs:
-            raise Exception("No outputs generated")
+        if not all_segments:
+            raise Exception("No segments")
 
         final_path = f"/tmp/{job_id}.mp4"
+        temp_files.append(final_path)
 
-        print("[FINAL CONCAT]")
+        print("[FFMPEG GLOBAL CONCAT]")
 
-        with open("/tmp/list.txt", "w") as f:
-            for v in all_outputs:
-                f.write(f"file '{v}'\n")
+        concat(all_segments, final_path)
 
-        os.system(f"""
-            ffmpeg -y -f concat -safe 0 -i /tmp/list.txt \
-            -c:v libx264 -preset fast -crf 20 \
-            -c:a aac -movflags +faststart {final_path}
-        """)
+        print("[UPLOAD]")
 
         with open(final_path, "rb") as f:
             upload(f"{job_id}.mp4", f)
@@ -104,6 +78,7 @@ def process(job):
         update(job_id, "failed")
 
     finally:
+        print("[CLEANUP]")
         for f in temp_files:
             try:
                 if os.path.exists(f):
