@@ -70,6 +70,15 @@ def upload(files: list[UploadFile] = File(...), user=Depends(get_user)):
         print("[UPLOAD ERROR]", repr(e), flush=True)
         return {"error": str(e)}
 
+@app.get("/status/{job_id}")
+def status(job_id: str):
+    res = supabase.table("jobs").select("*").eq("id", job_id).execute()
+
+    if not res.data:
+        return {"status": "not_found"}
+
+    return res.data[0]
+
 @app.get("/ping")
 def ping():
     print("PING HIT", flush=True)

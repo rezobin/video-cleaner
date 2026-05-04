@@ -10,7 +10,14 @@ if not REDIS_URL:
 
 print("[QUEUE INIT] URL =", REDIS_URL, flush=True)
 
-r = redis.from_url(REDIS_URL, decode_responses=True)
+import redis
+
+r = redis.Redis.from_url(
+    REDIS_URL,
+    decode_responses=True,
+    ssl=True,
+    ssl_cert_reqs=None
+)
 
 QUEUE_KEY = "jobs:queue"
 
