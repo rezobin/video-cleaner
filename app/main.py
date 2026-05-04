@@ -49,6 +49,9 @@ def upload(files: list[UploadFile] = File(...), user=Depends(get_user)):
         "input_paths": inputs
     }).execute()
 
+
+    print("[API] pushing to redis...", flush=True)
+    
     # 🔥 PUSH REDIS
     push_job({
         "id": job_id,
