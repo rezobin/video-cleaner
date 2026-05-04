@@ -6,4 +6,4 @@ PyJWT
 httpx
 python-multipart
 cryptography
-redis
+redis>=5.0.0
