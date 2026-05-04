@@ -18,8 +18,10 @@ app.add_middleware(
 )
 
 
+
 @app.post("/upload")
 def upload(files: list[UploadFile] = File(...), user=Depends(get_user)):
+    print("=== UPLOAD ENDPOINT HIT ===", flush=True)
 
     job_id = str(uuid.uuid4())
 
@@ -50,14 +52,14 @@ def upload(files: list[UploadFile] = File(...), user=Depends(get_user)):
     }).execute()
 
 
-    print("[API] pushing to redis...", flush=True)
-    
+    print("[API] BEFORE PUSH", flush=True)
+
     # 🔥 PUSH REDIS
     push_job({
         "id": job_id,
         "input_paths": inputs
     })
 
-    print("[API] job created =", job_id, flush=True)
+    print("[API] AFTER PUSH", flush=True)
 
     return {"job_id": job_id}
