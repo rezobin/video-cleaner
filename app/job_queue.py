@@ -8,15 +8,12 @@ REDIS_URL = os.getenv("REDIS_URL")
 if not REDIS_URL:
     raise Exception("REDIS_URL missing")
 
-print("[QUEUE INIT] URL =", REDIS_URL, flush=True)
+print("[QUEUE INIT]", REDIS_URL, flush=True)
 
-import redis
-
-r = redis.Redis.from_url(
+# ✅ FIX SIMPLE & ROBUSTE
+r = redis.from_url(
     REDIS_URL,
-    decode_responses=True,
-    ssl=True,
-    ssl_cert_reqs=None
+    decode_responses=True
 )
 
 QUEUE_KEY = "jobs:queue"
@@ -24,8 +21,6 @@ QUEUE_KEY = "jobs:queue"
 
 def push_job(job: dict):
     job_id = job["id"]
-
-    print("=== PUSH START ===", flush=True)
 
     r.hset(f"job:{job_id}", mapping={
         "data": json.dumps(job),
@@ -35,8 +30,7 @@ def push_job(job: dict):
 
     r.rpush(QUEUE_KEY, job_id)
 
-    print("[PUSH OK]", job_id, flush=True)
-    print("[QUEUE SIZE AFTER PUSH]", r.llen(QUEUE_KEY), flush=True)
+    print("[PUSH]", job_id, flush=True)
 
 
 def pop_job():
@@ -52,8 +46,6 @@ def pop_job():
     _, job_id = res
 
     data = r.hget(f"job:{job_id}", "data")
-
-    print("[POP DATA FOUND]", bool(data), flush=True)
 
     if not data:
         return None
