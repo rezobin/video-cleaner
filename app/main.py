@@ -64,3 +64,9 @@ def upload(files: list[UploadFile] = File(...), user=Depends(get_user)):
     print("[API] AFTER PUSH", flush=True)
 
     return {"job_id": job_id}
+
+
+@app.get("/ping")
+def ping():
+    print("PING HIT", flush=True)
+    return {"status": "ok"}
