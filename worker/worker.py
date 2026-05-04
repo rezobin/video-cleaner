@@ -13,6 +13,10 @@ from pipeline import cut_video
 print("=== WORKER START ===", flush=True)
 print("REDIS =", os.getenv("REDIS_URL"), flush=True)
 
+import redis
+print("[REDIS FILE]", redis.__file__, flush=True)
+print("[REDIS VERSION]", getattr(redis, "__version__", None), flush=True)
+
 
 # -------------------------
 # UTILS
