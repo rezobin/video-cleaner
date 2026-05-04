@@ -17,6 +17,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+print("=== API BOOTED VERSION X ===", flush=True)
 
 
 @app.post("/upload")
