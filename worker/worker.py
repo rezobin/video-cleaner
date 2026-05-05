@@ -1,8 +1,9 @@
 import os
 import time
 import subprocess
+import redis
 
-from app.job_queue import pop_job, ack_job, r
+from app.job_queue import pop_job, ack_job
 from app.db import update_job
 
 from storage import download, upload, public_url
@@ -12,7 +13,20 @@ from pipeline import cut_video
 
 print("=== WORKER START ===", flush=True)
 
+# -------------------------
+# REDIS SAFE INIT (IMPORTANT FIX)
+# -------------------------
+REDIS_URL = os.getenv("REDIS_URL")
 
+if not REDIS_URL:
+    raise Exception("REDIS_URL missing")
+
+r = redis.from_url(REDIS_URL, decode_responses=True)
+
+
+# -------------------------
+# UTILS
+# -------------------------
 def get_duration(path):
     return float(subprocess.check_output([
         "ffprobe", "-v", "error",
@@ -22,6 +36,17 @@ def get_duration(path):
     ]).decode().strip())
 
 
+def set_progress(job_id, value):
+    try:
+        r.hset(f"job:{job_id}", "progress", int(value))
+        r.hset(f"job:{job_id}", "status", "processing")
+    except Exception as e:
+        print("[REDIS PROGRESS ERROR]", repr(e), flush=True)
+
+
+# -------------------------
+# CONCAT FIXED
+# -------------------------
 def concat(files, output_path):
     print("[CONCAT START]", flush=True)
 
@@ -38,19 +63,22 @@ def concat(files, output_path):
 
         "-c:v", "libx264",
         "-preset", "veryfast",
-        "-crf", "22",
+        "-crf", "23",
 
         "-c:a", "aac",
         "-b:a", "128k",
+
+        "-movflags", "+faststart",
 
         output_path
     ], check=True)
 
     print("[CONCAT DONE]", flush=True)
 
-def set_progress(job_id, value):
-    r.hset(f"job:{job_id}", "progress", value)
 
+# -------------------------
+# PROCESS JOB
+# -------------------------
 def process(job):
 
     job_id = job["id"]
@@ -59,7 +87,6 @@ def process(job):
     print("[JOB START]", job_id, flush=True)
 
     update_job(job_id, "processing")
-
     set_progress(job_id, 5)
 
     temp = []
@@ -71,10 +98,7 @@ def process(job):
 
             print("[DOWNLOAD]", path, flush=True)
 
-            print("[DOWNLOAD START]", path, flush=True)
             raw = download(path)
-            print("[DOWNLOAD DONE]", path, len(raw) if raw else None, flush=True)
-            set_progress(job_id, 20)
 
             if not raw:
                 raise Exception("Download failed")
@@ -84,21 +108,17 @@ def process(job):
             with open(raw_path, "wb") as f:
                 f.write(raw)
 
-            print("[DOWNLOADED]", raw_path, flush=True)
-
             temp.append(raw_path)
+
+            set_progress(job_id, 15 + i * 10)
 
             duration = get_duration(raw_path)
             print("[DURATION]", duration, flush=True)
 
             silences = detect_silences(raw_path)
-            set_progress(job_id, 40)
             segments = build_segments(duration, silences)
 
-            if not segments:
-                raise Exception("No segments")
-
-            print("[CUTTING SEGMENTS]", len(segments), flush=True)
+            print("[SEGMENTS]", len(segments), flush=True)
 
             for j, (start, end) in enumerate(segments):
 
@@ -109,14 +129,15 @@ def process(job):
                 all_segments_files.append(out)
                 temp.append(out)
 
-            set_progress(job_id, 70)
+            set_progress(job_id, 50)
 
         final_path = f"/tmp/{job_id}.mp4"
 
         print("[FINAL CONCAT]", flush=True)
 
         concat(all_segments_files, final_path)
-        set_progress(job_id, 90)
+
+        set_progress(job_id, 80)
 
         print("[UPLOAD]", flush=True)
 
@@ -128,12 +149,19 @@ def process(job):
         update_job(job_id, "done", url)
         ack_job(job_id)
 
-        print("[DONE]", job_id, flush=True)
         set_progress(job_id, 100)
+
+        print("[DONE]", job_id, flush=True)
 
     except Exception as e:
         print("[ERROR]", repr(e), flush=True)
+
         update_job(job_id, "failed")
+
+        try:
+            r.hset(f"job:{job_id}", "status", "failed")
+        except:
+            pass
 
     finally:
         for f in temp:
@@ -144,6 +172,9 @@ def process(job):
                 pass
 
 
+# -------------------------
+# LOOP (SAFE)
+# -------------------------
 while True:
     try:
         job = pop_job()
