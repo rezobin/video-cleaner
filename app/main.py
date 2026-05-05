@@ -1,12 +1,12 @@
 import uuid
 import shutil
 
-from fastapi import FastAPI, UploadFile, File, Depends
+from fastapi import FastAPI, UploadFile, File, Header
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.auth import get_user
+from app.auth import get_user, ensure_user
 from app.supabase_client import supabase
-from app.job_queue import push_job, r
+from app.job_queue import push_job
 
 app = FastAPI()
 
@@ -17,23 +17,32 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-print("=== API BOOTED VERSION X ===", flush=True)
+# -------------------------
+# OPTIONAL AUTH (guest ok)
+# -------------------------
+def optional_user(authorization: str = Header(None)):
+    if not authorization:
+        return None
+
+    try:
+        return get_user(authorization)
+    except:
+        return None
 
 
 # -------------------------
-# UPLOAD.
+# UPLOAD
 # -------------------------
 @app.post("/upload")
-def upload(files: list[UploadFile] = File(...), user=Depends(get_user)):
-    print("=== UPLOAD START ===", flush=True)
+def upload(files: list[UploadFile] = File(...), authorization: str = Header(None)):
+
+    user = optional_user(authorization)
 
     try:
         job_id = str(uuid.uuid4())
         inputs = []
 
         for i, f in enumerate(files):
-            print("[UPLOAD] processing file", i, flush=True)
-
             path = f"{job_id}/{i}.mp4"
             temp_path = f"/tmp/{job_id}_{i}.mp4"
 
@@ -49,23 +58,26 @@ def upload(files: list[UploadFile] = File(...), user=Depends(get_user)):
 
             inputs.append(path)
 
-        print("[UPLOAD] files uploaded", flush=True)
+        # user tracking
+        if user:
+            ensure_user(user)
+
+            supabase.rpc("increment_uploads", {
+                "user_id": user["sub"]
+            }).execute()
 
         supabase.table("jobs").insert({
             "id": job_id,
-            "user_id": user["sub"],
+            "user_id": user["sub"] if user else None,
             "status": "queued",
+            "progress": 0,
             "input_paths": inputs
         }).execute()
-
-        print("[UPLOAD] DB insert OK", flush=True)
 
         push_job({
             "id": job_id,
             "input_paths": inputs
         })
-
-        print("[UPLOAD] PUSH DONE", flush=True)
 
         return {"job_id": job_id}
 
@@ -75,8 +87,10 @@ def upload(files: list[UploadFile] = File(...), user=Depends(get_user)):
 
 
 # -------------------------
-# STATUS (FIX IMPORTANT)
+# STATUS
 # -------------------------
+from app.job_queue import r
+
 @app.get("/status/{job_id}")
 def status(job_id: str):
 
@@ -87,23 +101,10 @@ def status(job_id: str):
 
     job = db.data[0]
 
-    redis_key = f"job:{job_id}"
-    redis_data = r.hgetall(redis_key)
-
-    status = redis_data.get("status") or job.get("status", "unknown")
-    progress = redis_data.get("progress") or job.get("progress", 0)
-    url = redis_data.get("url") or job.get("output_url")
+    redis_data = r.hgetall(f"job:{job_id}")
 
     return {
-        "status": status,
-        "progress": int(progress or 0),
-        "output_url": url
+        "status": redis_data.get("status") or job.get("status"),
+        "progress": int(redis_data.get("progress") or job.get("progress") or 0),
+        "output_url": redis_data.get("url") or job.get("output_url")
     }
-
-# -------------------------
-# PING
-# -------------------------
-@app.get("/ping")
-def ping():
-    print("PING HIT", flush=True)
-    return {"status": "ok"}

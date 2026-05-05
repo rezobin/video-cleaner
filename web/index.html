@@ -1,91 +1,169 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Video Cleaner</title>
+  <title>Talklean</title>
 
 <style>
 body {
+  margin: 0;
   font-family: system-ui;
-  max-width: 720px;
-  margin: 20px auto;
-  padding: 16px;
+  background: #fafafa;
+  color: #111;
 }
 
-h2 {
-  font-size: 18px;
-  margin-top: 20px;
-}
-
-button {
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid #ddd;
+/* NAVBAR */
+.navbar {
+  position: sticky;
+  top: 0;
   background: white;
-}
-
-input {
-  padding: 8px;
-  width: 100%;
-  margin: 6px 0;
-}
-
-.file-item {
+  border-bottom: 1px solid #eee;
+  padding: 12px 16px;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 8px;
-  border: 1px solid #eee;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.logo {
+  font-weight: bold;
+  color: #FF5A5F;
+  font-size: 18px;
+}
+
+.cta {
+  background: #FF5A5F;
+  color: white;
+  border: none;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+/* HERO */
+.hero {
+  padding: 40px 16px;
+  text-align: center;
+}
+
+.hero h1 {
+  font-size: 24px;
+  line-height: 1.3;
+}
+
+.hero p {
+  font-size: 14px;
+  color: #555;
+}
+
+.hero button {
+  width: 100%;
+  margin-top: 16px;
+  padding: 14px;
+  font-size: 16px;
   border-radius: 12px;
-  margin-bottom: 10px;
+  background: #FF5A5F;
+  color: white;
+  border: none;
+}
+
+/* APP */
+.app {
+  padding: 16px;
+  margin: 20px;
+  background: white;
+  border-radius: 12px;
+}
+
+input, button {
+  width: 100%;
+  padding: 12px;
+  margin-top: 10px;
+  border-radius: 10px;
+}
+
+/* PREVIEW */
+#preview {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
 }
 
 video {
   width: 100%;
-  max-width: 200px;
   border-radius: 10px;
 }
 
-#preview {
-  display: grid;
-  gap: 10px;
+/* PROGRESS */
+#progress-bar {
+  height: 10px;
+  background: #FF5A5F;
+  width: 0%;
+  border-radius: 8px;
 }
 </style>
+
 </head>
 
 <body>
 
-<h2>Login</h2>
-
-<input id="email" type="email" placeholder="email" />
-<button onclick="login()">Login</button>
-
-<div id="user-info" style="display:none">
-  Connected as: <span id="user-email"></span>
-  <button onclick="logout()">Logout</button>
+<!-- NAVBAR -->
+<div class="navbar">
+  <div class="logo">Talklean</div>
+  <button class="cta" onclick="scrollToApp()">Start free</button>
 </div>
 
-<hr/>
+<!-- HERO -->
+<div class="hero" id="hero">
+  <h1>Make your videos actually watchable</h1>
+  <p>Remove silences. Keep your flow. No editing required.</p>
 
-<h2>Upload videos</h2>
+  <button onclick="scrollToApp()">Start cleaning videos</button>
 
-<input id="files" type="file" multiple accept="video/*" />
-<button onclick="upload()">Upload</button>
-
-<p id="status"></p>
-
-<div id="progress-container" style="display:none">
-  <div style="width:100%;background:#eee;border-radius:8px;height:10px;">
-    <div id="progress-bar" style="height:10px;width:0%;background:black;border-radius:8px;"></div>
+  <div class="benefits">
+    <div>No editing</div>
+    <div>No weird AI</div>
+    <div>Just you, enhanced</div>
   </div>
 </div>
 
-<a id="download" style="display:none" target="_blank">Download final video</a>
+<!-- APP -->
+<div class="app" id="app">
 
-<h3>Preview</h3>
-<div id="preview"></div>
+  <div id="auth">
+    <input id="email" type="email" placeholder="email" />
+    <button onclick="login()">Login</button>
+  </div>
+
+  <div id="user-info" style="display:none">
+    Connected as: <span id="user-email"></span>
+  </div>
+
+  <hr/>
+
+  <input id="files" type="file" multiple accept="video/*" />
+  <button onclick="upload()">Upload</button>
+
+  <p id="status"></p>
+
+  <div id="progress-container">
+    <div style="width:100%;background:#eee;border-radius:8px;">
+      <div id="progress-bar"></div>
+    </div>
+  </div>
+
+  <a id="download" style="display:none" target="_blank">Download</a>
+
+  <div id="preview"></div>
+
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
 <script src="./app.js"></script>
+
+<script>
+function scrollToApp() {
+  document.getElementById("app").scrollIntoView({ behavior: "smooth" })
+}
+</script>
 
 </body>
 </html>

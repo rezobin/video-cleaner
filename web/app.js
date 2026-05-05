@@ -18,12 +18,15 @@ async function login() {
   await supabaseClient.auth.signInWithOtp({
     email,
     options: {
-      // IMPORTANT: production-safe redirect
       emailRedirectTo: window.location.origin
     }
   })
 
   alert("Check your email")
+}
+
+function logout() {
+  supabaseClient.auth.signOut()
 }
 
 supabaseClient.auth.onAuthStateChange((_, sess) => {
@@ -44,7 +47,7 @@ supabaseClient.auth.onAuthStateChange((_, sess) => {
 })
 
 // -------------------------
-// FILE PREVIEW + STATE
+// FILE PREVIEW
 // -------------------------
 
 document.getElementById("files").addEventListener("change", (e) => {
@@ -54,20 +57,15 @@ document.getElementById("files").addEventListener("change", (e) => {
 
 function renderPreviews() {
   const container = document.getElementById("preview")
-  if (!container) return
-
   container.innerHTML = ""
 
   selectedFiles.forEach((file, index) => {
     const url = URL.createObjectURL(file)
 
     const div = document.createElement("div")
-    div.style.margin = "10px"
-    div.style.border = "1px solid #ccc"
-    div.style.padding = "10px"
 
     div.innerHTML = `
-      <video src="${url}" controls style="max-width:200px;border-radius:10px"></video>
+      <video src="${url}" controls></video>
       <div>
         <button onclick="moveUp(${index})">⬆️</button>
         <button onclick="moveDown(${index})">⬇️</button>
@@ -86,13 +84,13 @@ window.removeFile = (i) => {
 
 window.moveUp = (i) => {
   if (i === 0) return
-  [selectedFiles[i - 1], selectedFiles[i]] = [selectedFiles[i], selectedFiles[i - 1]]
+  ;[selectedFiles[i - 1], selectedFiles[i]] = [selectedFiles[i], selectedFiles[i - 1]]
   renderPreviews()
 }
 
 window.moveDown = (i) => {
   if (i === selectedFiles.length - 1) return
-  [selectedFiles[i + 1], selectedFiles[i]] = [selectedFiles[i], selectedFiles[i + 1]]
+  ;[selectedFiles[i + 1], selectedFiles[i]] = [selectedFiles[i], selectedFiles[i + 1]]
   renderPreviews()
 }
 
@@ -101,20 +99,23 @@ window.moveDown = (i) => {
 // -------------------------
 
 async function upload() {
-  if (!session) return alert("login first")
   if (selectedFiles.length === 0) return alert("no files")
 
-  const form = new FormData()
+  if (!session) {
+    console.log("guest mode")
+  }
 
-  selectedFiles.forEach((f) => {
-    form.append("files", f)
-  })
+  const form = new FormData()
+  selectedFiles.forEach((f) => form.append("files", f))
+
+  const headers = {}
+  if (session) {
+    headers["Authorization"] = "Bearer " + session.access_token
+  }
 
   const res = await fetch(`${API_URL}/upload`, {
     method: "POST",
-    headers: {
-      "Authorization": "Bearer " + session.access_token
-    },
+    headers,
     body: form
   })
 
@@ -129,42 +130,35 @@ async function upload() {
 }
 
 // -------------------------
-// POLL STATUS
+// POLL
 // -------------------------
-
-function setProgress(p) {
-  document.getElementById("progress-container").style.display = "block"
-  document.getElementById("progress-bar").style.width = p + "%"
-}
 
 async function poll(jobId) {
   const interval = setInterval(async () => {
+    const headers = {}
+    if (session) {
+      headers["Authorization"] = "Bearer " + session.access_token
+    }
 
-    const res = await fetch(`${API_URL}/status/${jobId}`, {
-      headers: {
-        "Authorization": "Bearer " + session.access_token
-      }
-    })
-
+    const res = await fetch(`${API_URL}/status/${jobId}`, { headers })
     const data = await res.json()
-
-    console.log("[STATUS]", data)
 
     document.getElementById("status").innerText = data.status
 
-    setProgress(data.progress || 0)
+    // progress bar
+    document.getElementById("progress-container").style.display = "block"
+    document.getElementById("progress-bar").style.width = (data.progress || 0) + "%"
 
     if (data.status === "done") {
       clearInterval(interval)
 
-      const a = document.getElementById("download")
-
-      if (data.output_url) {
-        a.href = data.output_url
-      } else {
-        console.error("NO OUTPUT URL")
+      if (!session) {
+        alert("Enter email to download")
+        return
       }
 
+      const a = document.getElementById("download")
+      a.href = data.output_url
       a.style.display = "block"
       a.innerText = "DOWNLOAD FINAL VIDEO"
     }
@@ -176,4 +170,3 @@ async function poll(jobId) {
 
   }, 1500)
 }
-
