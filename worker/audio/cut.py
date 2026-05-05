@@ -1,9 +1,9 @@
 import subprocess
 
-THRESHOLD = "-38dB"
-MIN_SILENCE = 0.4
-PADDING = 0.15
-MIN_SEGMENT = 1.0
+THRESHOLD = "-32dB"
+MIN_SILENCE = 0.25
+PADDING = 0.08
+MIN_SEGMENT = 0.5
 
 
 def detect_silences(video_path):
@@ -43,14 +43,17 @@ def detect_silences(video_path):
     return list(zip(starts, ends))
 
 
+def align(t, fps=30):
+    return round(t * fps) / fps
+
 def build_segments(duration, silences):
     segments = []
     cursor = 0.0
 
     for start, end in silences:
-
-        start = max(0, start - PADDING)
-        end = min(duration, end + PADDING)
+        
+        start = align(start - PADDING)
+        end = align(end + PADDING)
 
         if start > cursor:
             segments.append((cursor, start))
