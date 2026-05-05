@@ -41,17 +41,9 @@ def concat(files, output_path):
         "-f", "concat",
         "-safe", "0",
         "-i", "/tmp/list.txt",
-
-        "-c:v", "libx264",
-        "-preset", "veryfast",
-        "-crf", "22",
-
-        "-c:a", "aac",
-        "-movflags", "+faststart",
-
+        "-c", "copy",
         output_path
     ], check=True)
-
 
 # -------------------------
 # MAIN PROCESS
