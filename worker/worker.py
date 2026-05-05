@@ -35,16 +35,18 @@ def concat(files, output_path):
         "-f", "concat",
         "-safe", "0",
         "-i", "/tmp/list.txt",
-        "-c:v libx264"
-        "-preset veryfast",
-        "-crf 22",
-        "-c:a aac",
-        "-b:a 128k",
+
+        "-c:v", "libx264",
+        "-preset", "veryfast",
+        "-crf", "22",
+
+        "-c:a", "aac",
+        "-b:a", "128k",
+
         output_path
     ], check=True)
 
     print("[CONCAT DONE]", flush=True)
-
 
 def process(job):
 
@@ -64,7 +66,9 @@ def process(job):
 
             print("[DOWNLOAD]", path, flush=True)
 
+            print("[DOWNLOAD START]", path, flush=True)
             raw = download(path)
+            print("[DOWNLOAD DONE]", path, len(raw) if raw else None, flush=True)
             if not raw:
                 raise Exception("Download failed")
 

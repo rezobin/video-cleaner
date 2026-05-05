@@ -13,12 +13,14 @@ def cut_video(input_path, start, end, output_path):
 
         "-c:v", "libx264",
         "-preset", "veryfast",
-        "-crf", "23",
+        "-crf", "22",
 
         "-c:a", "aac",
         "-b:a", "128k",
 
-        "-threads", "0",
-
-        output_path
-    ], check=True)
+        "-threads", "2"
+        ,output_path
+    ],
+    check=True,
+    timeout=120  # 🔥 IMPORTANT
+    )
