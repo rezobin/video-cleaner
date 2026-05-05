@@ -21,7 +21,7 @@ print("=== API BOOTED VERSION X ===", flush=True)
 
 
 # -------------------------
-# UPLOAD
+# UPLOAD.
 # -------------------------
 @app.post("/upload")
 def upload(files: list[UploadFile] = File(...), user=Depends(get_user)):
