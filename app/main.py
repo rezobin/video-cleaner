@@ -2,6 +2,7 @@ import uuid
 import shutil
 import time
 import redis
+import os
 
 from fastapi import FastAPI, UploadFile, File, Depends, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
