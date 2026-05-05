@@ -6,7 +6,7 @@ import redis
 from fastapi import FastAPI, UploadFile, File, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.auth import get_user
+from app.auth import get_user, ensure_user, get_user_optional
 from app.supabase_client import supabase
 from app.job_queue import push_job
 from app.auth import ensure_user
@@ -16,15 +16,16 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:5500",
         "https://video-cleaner-ixce.vercel.app",
-        "https://video-cleaner-8j64.onrender.com"
+        "http://localhost:3000",
+        "http://localhost:5173"
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
 r = redis.from_url(os.getenv("REDIS_URL"), decode_responses=True)
 
 GUEST_LIMIT = 2
@@ -81,18 +82,14 @@ def increment_user_upload(user_id: str):
 # UPLOAD
 # -------------------------
 @app.post("/upload")
-def upload(
-    request: Request,
-    files: list[UploadFile] = File(...)
-):
+def upload(request: Request, files: list[UploadFile] = File(...)):
     ip = get_ip(request)
-    auth = request.headers.get("authorization")
-    user = get_user_optional(auth)
+    user = get_user_optional(request)
 
     is_guest = user is None
 
     # -------------------------
-    # LIMITS
+    # LIMITING
     # -------------------------
     if is_guest:
         if not check_guest_limit(ip):
@@ -101,9 +98,6 @@ def upload(
                 detail="GUEST_LIMIT_REACHED"
             )
         incr_guest(ip)
-    else:
-        # optional DB limit
-        pass
 
     job_id = str(uuid.uuid4())
     inputs = []
@@ -133,24 +127,16 @@ def upload(
             "input_paths": inputs
         }).execute()
 
-        if user:
-            increment_user_upload(user["sub"])
-
         push_job({
             "id": job_id,
             "input_paths": inputs
         })
 
-        return {
-            "job_id": job_id,
-            "guest": is_guest
-        }
-    except Exception as e:
-        import traceback
-        print("[UPLOAD ERROR]", repr(e))
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"job_id": job_id, "guest": is_guest}
 
+    except Exception as e:
+        print("[UPLOAD ERROR]", e)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/status/{job_id}")
 def status(job_id: str):

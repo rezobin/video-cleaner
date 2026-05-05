@@ -36,12 +36,16 @@ def get_user(authorization: str = Header(None)):
 # -------------------------
 # OPTIONAL (guest allowed)
 # -------------------------
-def get_user_optional(authorization: str = Header(None)):
-    if not authorization:
+def get_user_optional(request: Request):
+    auth = request.headers.get("authorization")
+
+    if not auth:
         return None
 
     try:
-        return get_user(authorization)
+        user = get_user(auth)
+        ensure_user(user)
+        return user
     except:
         return None
 

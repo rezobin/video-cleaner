@@ -69,7 +69,6 @@ function syncUI() {
   const auth = document.getElementById("auth-section")
   const userBox = document.getElementById("user-info")
   const emailInput = document.getElementById("email")
-  const userEmail = document.getElementById("user-email")
 
   const logged = !!session
 
@@ -77,11 +76,8 @@ function syncUI() {
   if (userBox) userBox.style.display = logged ? "block" : "none"
   if (emailInput) emailInput.style.display = logged ? "none" : "block"
 
-  if (userEmail && logged) {
-    userEmail.innerText = session.user.email
-  }
+  updateUserUI()
 }
-
 // -------------------------
 // FILE PICKER
 // -------------------------
@@ -206,4 +202,15 @@ window.login = async function () {
   }
 
   alert("Check your email")
+}
+
+
+function updateUserUI() {
+  const userEmail = document.getElementById("user-email")
+
+  if (session && session.user) {
+    if (userEmail) {
+      userEmail.innerText = `Welcome, ${session.user.email}`
+    }
+  }
 }
