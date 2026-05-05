@@ -158,32 +158,52 @@ window.upload = async () => {
 // -------------------------
 function poll(jobId) {
   const interval = setInterval(async () => {
-    const res = await fetch(`${API_URL}/status/${jobId}`, {
-      headers: {
-        Authorization: session ? `Bearer ${session.access_token}` : ""
-      }
-    })
-
+    const res = await fetch(`${API_URL}/status/${jobId}`)
     const data = await res.json()
 
+    const status = data.status || "processing"
+    const progress = data.progress ?? 0
+
     document.getElementById("status").innerText =
-      `${data.status || "processing"} ${data.progress ?? 0}%`
+      `${status} ${progress}%`
 
-    document.getElementById("progress-bar").style.width =
-      (data.progress || 0) + "%"
+    document.getElementById("progress-container").style.display = "block"
+    document.getElementById("progress-bar").style.width = progress + "%"
 
-    if (data.status === "done") {
+    if (status === "done") {
       clearInterval(interval)
 
-      const a = document.getElementById("download")
-      a.href = data.output_url
-      a.style.display = "block"
-      a.innerText = "DOWNLOAD"
+      const url = data.output_url
+
+      if (url) {
+        const a = document.getElementById("download")
+        a.href = url
+        a.style.display = "block"
+        a.innerText = "DOWNLOAD FINAL VIDEO"
+      }
     }
 
-    if (data.status === "failed") {
+    if (status === "failed") {
       clearInterval(interval)
       alert("failed")
     }
-  }, 1200)
+  }, 1000)
+}
+
+// email 
+window.login = async function () {
+  const email = document.getElementById("email").value
+
+  if (!email) return alert("Enter email")
+
+  const { error } = await supabaseClient.auth.signInWithOtp({
+    email
+  })
+
+  if (error) {
+    alert(error.message)
+    return
+  }
+
+  alert("Check your email")
 }

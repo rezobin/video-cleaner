@@ -81,7 +81,8 @@ def upload(
     files: list[UploadFile] = File(...)
 ):
     ip = get_ip(request)
-    user = safe_get_user(request)
+    auth = request.headers.get("authorization")
+    user = get_user_optional(auth)
 
     is_guest = user is None
 
@@ -143,3 +144,20 @@ def upload(
     except Exception as e:
         print("[UPLOAD ERROR]", e)
         raise HTTPException(status_code=500, detail=str(e))
+    
+
+@app.get("/status/{job_id}")
+def status(job_id: str):
+    data = r.hgetall(f"job:{job_id}")
+
+    if not data:
+        return {
+            "status": "unknown",
+            "progress": 0
+        }
+
+    return {
+        "status": data.get("status", "queued"),
+        "progress": int(data.get("progress", 0)),
+        "output_url": data.get("output_url")
+    }

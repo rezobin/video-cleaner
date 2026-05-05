@@ -1,12 +1,14 @@
 import jwt
 from jwt import PyJWKClient
-from fastapi import Header, HTTPException
+from fastapi import Header, HTTPException, Request
 
 from app.supabase_client import supabase
-
 from app.config import JWKS_URL, SUPABASE_JWT_AUD
 
 
+# -------------------------
+# STRICT (protected routes)
+# -------------------------
 def get_user(authorization: str = Header(None)):
     if not authorization:
         raise HTTPException(status_code=401, detail="Missing auth header")
@@ -29,10 +31,33 @@ def get_user(authorization: str = Header(None)):
     except Exception as e:
         print("AUTH ERROR:", e)
         raise HTTPException(status_code=401, detail="Invalid token")
-    
-def ensure_user(user):
+
+
+# -------------------------
+# OPTIONAL (guest allowed)
+# -------------------------
+def get_user_optional(authorization: str = Header(None)):
+    if not authorization:
+        return None
+
     try:
-        existing = supabase.table("users").select("*").eq("id", user["sub"]).execute()
+        return get_user(authorization)
+    except:
+        return None
+
+
+# -------------------------
+# UPSERT USER (safe)
+# -------------------------
+def ensure_user(user):
+    if not user:
+        return
+
+    try:
+        existing = supabase.table("users") \
+            .select("id") \
+            .eq("id", user["sub"]) \
+            .execute()
 
         if not existing.data:
             supabase.table("users").insert({
@@ -42,14 +67,3 @@ def ensure_user(user):
 
     except Exception as e:
         print("[ENSURE USER ERROR]", e)
-
-
-def get_user_optional(request: Request):
-    try:
-        from app.auth import get_user
-        auth = request.headers.get("authorization")
-        if not auth:
-            return None
-        return get_user(auth)
-    except:
-        return None
