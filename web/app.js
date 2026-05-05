@@ -132,8 +132,14 @@ async function upload() {
 // POLL STATUS
 // -------------------------
 
+function setProgress(p) {
+  document.getElementById("progress-container").style.display = "block"
+  document.getElementById("progress-bar").style.width = p + "%"
+}
+
 async function poll(jobId) {
   const interval = setInterval(async () => {
+
     const res = await fetch(`${API_URL}/status/${jobId}`, {
       headers: {
         "Authorization": "Bearer " + session.access_token
@@ -142,13 +148,23 @@ async function poll(jobId) {
 
     const data = await res.json()
 
+    console.log("[STATUS]", data)
+
     document.getElementById("status").innerText = data.status
+
+    setProgress(data.progress || 0)
 
     if (data.status === "done") {
       clearInterval(interval)
 
       const a = document.getElementById("download")
-      a.href = data.output_url || `${API_URL}/download/${jobId}`
+
+      if (data.output_url) {
+        a.href = data.output_url
+      } else {
+        console.error("NO OUTPUT URL")
+      }
+
       a.style.display = "block"
       a.innerText = "DOWNLOAD FINAL VIDEO"
     }
@@ -157,15 +173,6 @@ async function poll(jobId) {
       clearInterval(interval)
       alert("processing failed")
     }
-
-    //PROGRESS BAR
-
-    function setProgress(p) {
-        document.getElementById("progress-container").style.display = "block"
-        document.getElementById("progress-bar").style.width = p + "%"
-        }
-
-    setProgress(data.progress)
 
   }, 1500)
 }

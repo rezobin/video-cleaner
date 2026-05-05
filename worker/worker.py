@@ -13,8 +13,9 @@ from pipeline import cut_video
 
 print("=== WORKER START ===", flush=True)
 
+
 # -------------------------
-# REDIS SAFE INIT (IMPORTANT FIX)
+# REDIS INIT (FIX IMPORTANT)
 # -------------------------
 REDIS_URL = os.getenv("REDIS_URL")
 
@@ -38,14 +39,16 @@ def get_duration(path):
 
 def set_progress(job_id, value):
     try:
-        r.hset(f"job:{job_id}", "progress", int(value))
-        r.hset(f"job:{job_id}", "status", "processing")
+        r.hset(f"job:{job_id}", mapping={
+            "progress": int(value),
+            "status": "processing"
+        })
     except Exception as e:
         print("[REDIS PROGRESS ERROR]", repr(e), flush=True)
 
 
 # -------------------------
-# CONCAT FIXED
+# CONCAT (SAFE + STREAMABLE)
 # -------------------------
 def concat(files, output_path):
     print("[CONCAT START]", flush=True)
@@ -86,8 +89,14 @@ def process(job):
 
     print("[JOB START]", job_id, flush=True)
 
+    # DB update
     update_job(job_id, "processing")
-    set_progress(job_id, 5)
+
+    # Redis init
+    r.hset(f"job:{job_id}", mapping={
+        "status": "processing",
+        "progress": 0
+    })
 
     temp = []
 
@@ -96,9 +105,11 @@ def process(job):
 
         for i, path in enumerate(inputs):
 
-            print("[DOWNLOAD]", path, flush=True)
+            print("[DOWNLOAD START]", path, flush=True)
 
             raw = download(path)
+
+            print("[DOWNLOAD DONE]", path, len(raw) if raw else None, flush=True)
 
             if not raw:
                 raise Exception("Download failed")
@@ -119,6 +130,9 @@ def process(job):
             segments = build_segments(duration, silences)
 
             print("[SEGMENTS]", len(segments), flush=True)
+
+            if not segments:
+                raise Exception("No segments generated")
 
             for j, (start, end) in enumerate(segments):
 
@@ -146,10 +160,19 @@ def process(job):
 
         url = public_url(f"{job_id}.mp4")
 
+        print("[URL]", url, flush=True)
+
+        # -------------------------
+        # 🔥 CRITICAL FIX
+        # -------------------------
+        r.hset(f"job:{job_id}", mapping={
+            "status": "done",
+            "progress": 100,
+            "url": url
+        })
+
         update_job(job_id, "done", url)
         ack_job(job_id)
-
-        set_progress(job_id, 100)
 
         print("[DONE]", job_id, flush=True)
 
@@ -159,7 +182,9 @@ def process(job):
         update_job(job_id, "failed")
 
         try:
-            r.hset(f"job:{job_id}", "status", "failed")
+            r.hset(f"job:{job_id}", mapping={
+                "status": "failed"
+            })
         except:
             pass
 
@@ -173,7 +198,7 @@ def process(job):
 
 
 # -------------------------
-# LOOP (SAFE)
+# LOOP
 # -------------------------
 while True:
     try:
