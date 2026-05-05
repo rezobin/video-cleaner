@@ -57,22 +57,26 @@ document.getElementById("files").addEventListener("change", (e) => {
 
 function renderPreviews() {
   const container = document.getElementById("preview")
+  if (!container) return
+
   container.innerHTML = ""
 
   selectedFiles.forEach((file, index) => {
     const url = URL.createObjectURL(file)
 
     const div = document.createElement("div")
-
     div.className = "file-item"
-    
+
     div.innerHTML = `
-    <video src="${url}" controls></video>
-    <div class="file-actions">
-        <button onclick="moveUp(${index})">⬆️</button>
-        <button onclick="moveDown(${index})">⬇️</button>
-        <button onclick="removeFile(${index})">🗑️</button>
-    </div>
+      <div class="video-wrapper">
+        <video src="${url}" muted playsinline></video>
+      </div>
+
+      <div style="display:flex;gap:6px;justify-content:center;">
+        <button onclick="moveUp(${index})">↑</button>
+        <button onclick="moveDown(${index})">↓</button>
+        <button onclick="removeFile(${index})">✕</button>
+      </div>
     `
 
     container.appendChild(div)

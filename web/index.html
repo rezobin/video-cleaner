@@ -3,16 +3,53 @@
 <head>
   <title>Talklean</title>
 
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <style>
+
+/* -------------------------
+   RESET
+------------------------- */
+
 * {
   box-sizing: border-box;
 }
 
 body {
-  font-family: system-ui;
   margin: 0;
-  padding: 16px;
+  font-family: system-ui;
   background: #fafafa;
+  color: #111;
+}
+
+/* -------------------------
+   NAVBAR
+------------------------- */
+
+.navbar {
+  position: sticky;
+  top: 0;
+  background: white;
+  border-bottom: 1px solid #eee;
+  padding: 12px 16px;
+
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.logo {
+  font-weight: 700;
+  color: #ff5a5f;
+}
+
+.cta {
+  background: #ff5a5f;
+  color: white;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
 }
 
 /* -------------------------
@@ -20,38 +57,62 @@ body {
 ------------------------- */
 
 .container {
-  max-width: 720px;
+  padding: 16px;
+  max-width: 900px;
   margin: auto;
 }
 
 /* -------------------------
-   TYPO
+   HERO
 ------------------------- */
 
-h2 {
-  font-size: 18px;
-  margin: 20px 0 10px;
+.hero {
+  margin-top: 20px;
+}
+
+.hero h1 {
+  font-size: 22px;
+  line-height: 1.3;
+}
+
+.hero p {
+  color: #666;
+  margin-bottom: 16px;
 }
 
 /* -------------------------
-   INPUTS
+   LOGIN
+------------------------- */
+
+.login-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.login-row {
+  display: flex;
+  gap: 8px;
+}
+
+.login-row input {
+  flex: 1;
+}
+
+/* -------------------------
+   INPUT / BUTTON
 ------------------------- */
 
 input {
-  width: 100%;
   padding: 10px;
   border-radius: 8px;
   border: 1px solid #ddd;
+  width: 100%;
 }
 
-/* -------------------------
-   BUTTONS (FIX CRITIQUE)
-------------------------- */
-
 button {
-  display: inline-block;        /* 🔥 évite stretch */
-  width: auto;                  /* 🔥 FIX principal */
-  padding: 8px 12px;
+  padding: 10px;
   border-radius: 8px;
   border: 1px solid #ddd;
   background: white;
@@ -59,9 +120,17 @@ button {
 }
 
 button.primary {
-  background: #ff5a5f; /* corail */
+  background: #ff5a5f;
   color: white;
   border: none;
+}
+
+/* -------------------------
+   UPLOAD
+------------------------- */
+
+#upload-section {
+  margin-top: 20px;
 }
 
 /* -------------------------
@@ -70,85 +139,81 @@ button.primary {
 
 #preview {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
 }
 
 .file-item {
-  border: 1px solid #eee;
-  border-radius: 12px;
-  padding: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  width: 100%;
+  max-width: 200px;
+  margin: auto;
 }
 
 video {
   width: 100%;
-  max-width: 100%;
+  max-height: 300px; /* 🔥 important */
+  object-fit: cover;
   border-radius: 10px;
 }
 
-/* -------------------------
-   ACTION BUTTONS UNDER VIDEO
-------------------------- */
+.video-wrapper {
+  width: 100%;
+  aspect-ratio: 1 / 1; /* 🔥 carré parfait */
+  overflow: hidden;
+  border-radius: 12px;
+  background: #000;
+}
+
+.video-wrapper video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* 🔥 crop intelligent */
+}
 
 .file-actions {
   display: flex;
   gap: 6px;
-  justify-content: space-between;
+  margin-top: 6px;
 }
 
 .file-actions button {
-  flex: 1;              /* petits boutons alignés */
-  padding: 6px;
+  flex: 1;
 }
 
 /* -------------------------
-   PROGRESS BAR
+   PROGRESS
 ------------------------- */
 
 #progress-container {
   margin-top: 10px;
 }
 
-#progress-container > div {
-  width: 100%;
-  background: #eee;
-  border-radius: 8px;
-  height: 10px;
-}
-
 #progress-bar {
-  height: 10px;
+  height: 8px;
   width: 0%;
   background: #ff5a5f;
   border-radius: 8px;
-  transition: width 0.3s ease;
 }
 
 /* -------------------------
-   MOBILE (IMPORTANT)
+   TABLET / DESKTOP
 ------------------------- */
 
-@media (max-width: 600px) {
+@media (min-width: 700px) {
 
-  body {
-    padding: 12px;
-  }
-
-  h2 {
-    font-size: 16px;
-  }
-
-  button {
-    padding: 10px;
+  .hero h1 {
+    font-size: 30px;
   }
 
   #preview {
-    grid-template-columns: 1fr; /* 🔥 une colonne mobile */
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .login-row {
+    max-width: 400px;
   }
 }
+
 </style>
 
 </head>
@@ -157,51 +222,47 @@ video {
 
 <!-- NAVBAR -->
 <div class="navbar">
-  <div class="logo">Talklean</div>
-  <button class="cta" onclick="scrollToApp()">Start free</button>
+  <div class="logo">talklean</div>
+  <button class="cta" onclick="scrollToUpload()">Try now</button>
 </div>
 
-<!-- HERO -->
-<div class="hero" id="hero">
-  <h1>Make your videos actually watchable</h1>
-  <p>Remove silences. Keep your flow. No editing required.</p>
+<div class="container">
 
-  <button onclick="scrollToApp()">Start cleaning videos</button>
+  <!-- HERO -->
+  <div class="hero">
+    <h1>Turn raw videos into clean content</h1>
+    <p>No editing. No AI weirdness. Just you, without the pauses.</p>
 
-  <div class="benefits">
-    <div>No editing</div>
-    <div>No weird AI</div>
-    <div>Just you, enhanced</div>
-  </div>
-</div>
+    <!-- LOGIN -->
+    <div class="login-box">
+      <div id="user-info" style="display:none;">
+        Connected as: <span id="user-email"></span>
+      </div>
 
-<!-- APP -->
-<div class="app" id="app">
-
-  <div id="auth">
-    <input id="email" type="email" placeholder="email" />
-    <button onclick="login()">Login</button>
-  </div>
-
-  <div id="user-info" style="display:none">
-    Connected as: <span id="user-email"></span>
-  </div>
-
-  <hr/>
-
-  <input id="files" type="file" multiple accept="video/*" />
-  <button onclick="upload()">Upload</button>
-
-  <p id="status"></p>
-
-  <div id="progress-container">
-    <div style="width:100%;background:#eee;border-radius:8px;">
-      <div id="progress-bar"></div>
+      <div id="login-form" class="login-row">
+        <input id="email" type="email" placeholder="email">
+        <button onclick="login()">Login</button>
+      </div>
     </div>
   </div>
 
-  <a id="download" style="display:none" target="_blank">Download</a>
+  <!-- UPLOAD -->
+  <div id="upload-section">
+    <input id="files" type="file" multiple accept="video/*">
+    <button class="primary" onclick="upload()">Upload</button>
 
+    <p id="status"></p>
+
+    <div id="progress-container">
+      <div style="background:#eee;height:8px;border-radius:8px;">
+        <div id="progress-bar"></div>
+      </div>
+    </div>
+
+    <a id="download" style="display:none" target="_blank">Download</a>
+  </div>
+
+  <h3>Preview</h3>
   <div id="preview"></div>
 
 </div>
@@ -210,8 +271,8 @@ video {
 <script src="./app.js"></script>
 
 <script>
-function scrollToApp() {
-  document.getElementById("app").scrollIntoView({ behavior: "smooth" })
+function scrollToUpload() {
+  document.getElementById("upload-section").scrollIntoView({ behavior: "smooth" })
 }
 </script>
 
