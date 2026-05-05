@@ -2,7 +2,7 @@ import os
 import time
 import subprocess
 
-from app.job_queue import pop_job, ack_job
+from app.job_queue import pop_job, ack_job, r
 from app.db import update_job
 
 from storage import download, upload, public_url

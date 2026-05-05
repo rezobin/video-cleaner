@@ -36,7 +36,7 @@ def push_job(job: dict):
 def pop_job():
     print("[POP WAITING]", flush=True)
 
-    res = r.blpop(QUEUE_KEY, timeout=5)
+    res = r.blpop(QUEUE_KEY, timeout=1)
 
     print("[POP RAW]", res, flush=True)
 
