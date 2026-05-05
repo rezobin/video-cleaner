@@ -1,9 +1,9 @@
 import subprocess
 
 THRESHOLD = "-38dB"
-MIN_SILENCE = 0.25
+MIN_SILENCE = 0.4
 PADDING = 0.15
-MIN_SEGMENT = 0.6
+MIN_SEGMENT = 1.0
 
 
 def detect_silences(video_path):
