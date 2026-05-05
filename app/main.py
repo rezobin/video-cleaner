@@ -1,10 +1,12 @@
 import uuid
 import shutil
+import time
+import redis
 
-from fastapi import FastAPI, UploadFile, File, Header
+from fastapi import FastAPI, UploadFile, File, Depends, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.auth import get_user, ensure_user
+from app.auth import get_user
 from app.supabase_client import supabase
 from app.job_queue import push_job
 
@@ -18,25 +20,53 @@ app.add_middleware(
 )
 
 # -------------------------
-# OPTIONAL AUTH (guest ok)
+# REDIS (guest tracking)
 # -------------------------
-def optional_user(authorization: str = Header(None)):
-    if not authorization:
-        return None
+r = redis.from_url(os.getenv("REDIS_URL"), decode_responses=True)
 
-    try:
-        return get_user(authorization)
-    except:
-        return None
+
+GUEST_LIMIT = 2
+
+
+def get_ip(request: Request):
+    return request.client.host
+
+
+def check_guest_limit(ip: str):
+    key = f"guest:{ip}:uploads"
+    count = r.get(key)
+
+    if count and int(count) >= GUEST_LIMIT:
+        return False
+
+    return True
+
+
+def incr_guest(ip: str):
+    key = f"guest:{ip}:uploads"
+    r.incr(key)
+    r.expire(key, 60 * 60 * 24)  # 24h window
 
 
 # -------------------------
 # UPLOAD
 # -------------------------
 @app.post("/upload")
-def upload(files: list[UploadFile] = File(...), authorization: str = Header(None)):
+def upload(
+    request: Request,
+    files: list[UploadFile] = File(...),
+    user=Depends(get_user)
+):
+    print("=== UPLOAD START ===", flush=True)
 
-    user = optional_user(authorization)
+    ip = get_ip(request)
+
+    is_guest = not user or "sub" not in user
+
+    if is_guest:
+        if not check_guest_limit(ip):
+            raise HTTPException(status_code=403, detail="Guest limit reached (2 uploads/day)")
+        incr_guest(ip)
 
     try:
         job_id = str(uuid.uuid4())
@@ -58,14 +88,6 @@ def upload(files: list[UploadFile] = File(...), authorization: str = Header(None
 
             inputs.append(path)
 
-        # user tracking
-        if user:
-            ensure_user(user)
-
-            supabase.rpc("increment_uploads", {
-                "user_id": user["sub"]
-            }).execute()
-
         supabase.table("jobs").insert({
             "id": job_id,
             "user_id": user["sub"] if user else None,
@@ -79,32 +101,11 @@ def upload(files: list[UploadFile] = File(...), authorization: str = Header(None
             "input_paths": inputs
         })
 
-        return {"job_id": job_id}
+        return {
+            "job_id": job_id,
+            "guest": is_guest
+        }
 
     except Exception as e:
         print("[UPLOAD ERROR]", repr(e), flush=True)
         return {"error": str(e)}
-
-
-# -------------------------
-# STATUS
-# -------------------------
-from app.job_queue import r
-
-@app.get("/status/{job_id}")
-def status(job_id: str):
-
-    db = supabase.table("jobs").select("*").eq("id", job_id).execute()
-
-    if not db.data:
-        return {"status": "not_found", "progress": 0}
-
-    job = db.data[0]
-
-    redis_data = r.hgetall(f"job:{job_id}")
-
-    return {
-        "status": redis_data.get("status") or job.get("status"),
-        "progress": int(redis_data.get("progress") or job.get("progress") or 0),
-        "output_url": redis_data.get("url") or job.get("output_url")
-    }

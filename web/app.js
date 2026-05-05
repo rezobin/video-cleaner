@@ -11,55 +11,64 @@ let selectedFiles = []
 // -------------------------
 // AUTH
 // -------------------------
-
-async function login() {
-  const email = document.getElementById("email").value
-
-  await supabaseClient.auth.signInWithOtp({
-    email,
-    options: {
-      emailRedirectTo: window.location.origin
-    }
-  })
-
-  alert("Check your email")
-}
-
-function logout() {
-  supabaseClient.auth.signOut()
-}
-
 supabaseClient.auth.onAuthStateChange((_, sess) => {
   session = sess
 
-  if (session) {
-    document.getElementById("user-info").style.display = "block"
-    document.getElementById("user-email").innerText = session.user.email
+  const userBox = document.getElementById("user-info")
+  const emailInput = document.getElementById("email")
 
-    document.getElementById("email").style.display = "none"
-    document.querySelector("button[onclick='login()']").style.display = "none"
-  } else {
-    document.getElementById("user-info").style.display = "none"
+  if (userBox) userBox.style.display = session ? "block" : "none"
+  if (emailInput) emailInput.style.display = session ? "none" : "block"
+})
 
-    document.getElementById("email").style.display = "block"
-    document.querySelector("button[onclick='login()']").style.display = "block"
+// -------------------------
+// GLOBAL FILE PICKER (FIX TRY NOW)
+// -------------------------
+window.openFilePicker = function () {
+  const input = document.getElementById("fileInput")
+  if (!input) {
+    console.error("fileInput missing")
+    return
   }
+  input.click()
+}
+
+// -------------------------
+// FILE INPUT (SINGLE SOURCE OF TRUTH)
+// -------------------------
+document.addEventListener("DOMContentLoaded", () => {
+  const fileInput = document.getElementById("fileInput")
+
+  if (!fileInput) {
+    console.error("fileInput NOT FOUND")
+    return
+  }
+
+  fileInput.addEventListener("change", (e) => {
+    const files = Array.from(e.target.files || [])
+
+    if (!files.length) return
+
+    // replace state (important)
+    selectedFiles = files
+
+    renderPreviews()
+
+    // allow reselect same files
+    e.target.value = ""
+  })
 })
 
 // -------------------------
-// FILE PREVIEW
+// PREVIEW
 // -------------------------
-
-document.getElementById("files").addEventListener("change", (e) => {
-  selectedFiles = Array.from(e.target.files)
-  renderPreviews()
-})
-
 function renderPreviews() {
   const container = document.getElementById("preview")
   if (!container) return
 
   container.innerHTML = ""
+
+  console.log("renderPreviews:", selectedFiles.length)
 
   selectedFiles.forEach((file, index) => {
     const url = URL.createObjectURL(file)
@@ -69,10 +78,10 @@ function renderPreviews() {
 
     div.innerHTML = `
       <div class="video-wrapper">
-        <video src="${url}" muted playsinline></video>
+        <video muted playsinline autoplay loop src="${url}"></video>
       </div>
 
-      <div style="display:flex;gap:6px;justify-content:center;">
+      <div style="display:flex;gap:6px;justify-content:center;margin-top:6px;">
         <button onclick="moveUp(${index})">↑</button>
         <button onclick="moveDown(${index})">↓</button>
         <button onclick="removeFile(${index})">✕</button>
@@ -83,52 +92,53 @@ function renderPreviews() {
   })
 }
 
-window.removeFile = (i) => {
+// -------------------------
+// FILE OPS
+// -------------------------
+window.removeFile = function (i) {
   selectedFiles.splice(i, 1)
   renderPreviews()
 }
 
-window.moveUp = (i) => {
+window.moveUp = function (i) {
   if (i === 0) return
-  ;[selectedFiles[i - 1], selectedFiles[i]] = [selectedFiles[i], selectedFiles[i - 1]]
+  [selectedFiles[i - 1], selectedFiles[i]] =
+    [selectedFiles[i], selectedFiles[i - 1]]
   renderPreviews()
 }
 
-window.moveDown = (i) => {
+window.moveDown = function (i) {
   if (i === selectedFiles.length - 1) return
-  ;[selectedFiles[i + 1], selectedFiles[i]] = [selectedFiles[i], selectedFiles[i + 1]]
+  [selectedFiles[i + 1], selectedFiles[i]] =
+    [selectedFiles[i], selectedFiles[i + 1]]
   renderPreviews()
 }
 
 // -------------------------
-// UPLOAD
+// UPLOAD (GUARD FIX)
 // -------------------------
-
-async function upload() {
-  if (selectedFiles.length === 0) return alert("no files")
-
-  if (!session) {
-    console.log("guest mode")
+window.upload = async function () {
+  if (!selectedFiles || selectedFiles.length === 0) {
+    alert("Choose files first")
+    return
   }
 
   const form = new FormData()
-  selectedFiles.forEach((f) => form.append("files", f))
 
-  const headers = {}
-  if (session) {
-    headers["Authorization"] = "Bearer " + session.access_token
-  }
+  selectedFiles.forEach(f => form.append("files", f))
 
   const res = await fetch(`${API_URL}/upload`, {
     method: "POST",
-    headers,
+    headers: {
+      "Authorization": session ? "Bearer " + session.access_token : ""
+    },
     body: form
   })
 
   const data = await res.json()
 
   if (!data.job_id) {
-    alert("upload failed")
+    alert(data.detail || "upload failed")
     return
   }
 
@@ -138,35 +148,36 @@ async function upload() {
 // -------------------------
 // POLL
 // -------------------------
-
-async function poll(jobId) {
+function poll(jobId) {
   const interval = setInterval(async () => {
-    const headers = {}
-    if (session) {
-      headers["Authorization"] = "Bearer " + session.access_token
-    }
+    const res = await fetch(`${API_URL}/status/${jobId}`, {
+      headers: {
+        "Authorization": session ? "Bearer " + session.access_token : ""
+      }
+    })
 
-    const res = await fetch(`${API_URL}/status/${jobId}`, { headers })
     const data = await res.json()
 
-    document.getElementById("status").innerText = data.status
+    const statusEl = document.getElementById("status")
+    const bar = document.getElementById("progress-bar")
+    const container = document.getElementById("progress-container")
 
-    // progress bar
-    document.getElementById("progress-container").style.display = "block"
-    document.getElementById("progress-bar").style.width = (data.progress || 0) + "%"
+    if (statusEl) {
+      statusEl.innerText = `${data.status} ${data.progress || 0}%`
+    }
+
+    if (container) container.style.display = "block"
+    if (bar) bar.style.width = (data.progress || 0) + "%"
 
     if (data.status === "done") {
       clearInterval(interval)
 
-      if (!session) {
-        alert("Enter email to download")
-        return
-      }
-
       const a = document.getElementById("download")
-      a.href = data.output_url
-      a.style.display = "block"
-      a.innerText = "DOWNLOAD FINAL VIDEO"
+      if (a) {
+        a.href = data.output_url
+        a.style.display = "block"
+        a.innerText = "DOWNLOAD FINAL VIDEO"
+      }
     }
 
     if (data.status === "failed") {
@@ -174,5 +185,5 @@ async function poll(jobId) {
       alert("processing failed")
     }
 
-  }, 1500)
+  }, 1200)
 }
