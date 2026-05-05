@@ -5,70 +5,113 @@ const SUPABASE_ANON_KEY = "sb_publishable_DGfn4J71yW2U6oY7beHGDg_Wptvc0Wy"
 
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
+// -------------------------
+// STATE
+// -------------------------
 let session = null
 let selectedFiles = []
 
 // -------------------------
-// AUTH
+// INIT UI ON LOAD
 // -------------------------
-supabaseClient.auth.onAuthStateChange((_, sess) => {
-  session = sess
+window.addEventListener("DOMContentLoaded", async () => {
+  const { data } = await supabaseClient.auth.getSession()
+  session = data.session
 
-  const userBox = document.getElementById("user-info")
-  const emailInput = document.getElementById("email")
+  syncUI()
 
-  if (userBox) userBox.style.display = session ? "block" : "none"
-  if (emailInput) emailInput.style.display = session ? "none" : "block"
-})
-
-// -------------------------
-// GLOBAL FILE PICKER (FIX TRY NOW)
-// -------------------------
-window.openFilePicker = function () {
-  const input = document.getElementById("fileInput")
-  if (!input) {
-    console.error("fileInput missing")
-    return
-  }
-  input.click()
-}
-
-// -------------------------
-// FILE INPUT (SINGLE SOURCE OF TRUTH)
-// -------------------------
-document.addEventListener("DOMContentLoaded", () => {
   const fileInput = document.getElementById("fileInput")
-
-  if (!fileInput) {
-    console.error("fileInput NOT FOUND")
-    return
-  }
 
   fileInput.addEventListener("change", (e) => {
     const files = Array.from(e.target.files || [])
 
     if (!files.length) return
 
-    // replace state (important)
-    selectedFiles = files
-
+    selectedFiles = selectedFiles.concat(files)
     renderPreviews()
 
-    // allow reselect same files
+    // important: allow re-select same files
     e.target.value = ""
   })
 })
 
 // -------------------------
-// PREVIEW
+// AUTH STATE CHANGE
+// -------------------------
+supabaseClient.auth.onAuthStateChange((_, sess) => {
+  session = sess
+
+  const auth = document.getElementById("auth-section")
+  const userBox = document.getElementById("user-info")
+  const emailInput = document.getElementById("email")
+
+  if (!auth) return
+
+  if (session) {
+    auth.style.display = "none"
+    if (userBox) userBox.style.display = "block"
+    if (emailInput) emailInput.style.display = "none"
+  } else {
+    auth.style.display = "block"
+    if (userBox) userBox.style.display = "none"
+    if (emailInput) emailInput.style.display = "block"
+  }
+})
+
+supabaseClient.auth.onAuthStateChange((_, sess) => {
+  session = sess
+
+  const userBox = document.getElementById("user-info")
+  const authSection = document.getElementById("auth-section")
+
+  if (userBox) userBox.style.display = session ? "block" : "none"
+  if (authSection) authSection.style.display = session ? "none" : "block"
+})
+// -------------------------
+// UI SYNC (IMPORTANT FIX)
+// -------------------------
+function syncUI() {
+  const authSection = document.getElementById("auth-section")
+  const userBox = document.getElementById("user-info")
+  const emailInput = document.getElementById("email")
+  const userEmail = document.getElementById("user-email")
+
+  const isLogged = !!session
+
+  if (authSection) {
+    authSection.style.display = isLogged ? "none" : "block"
+  }
+
+  if (userBox) {
+    userBox.style.display = isLogged ? "block" : "none"
+  }
+
+  if (emailInput) {
+    emailInput.style.display = isLogged ? "none" : "block"
+  }
+
+  if (userEmail && isLogged) {
+    userEmail.innerText = session.user.email
+  }
+}
+
+// -------------------------
+// FILE PICKER (TRY NOW FIX)
+// -------------------------
+window.openFilePicker = function () {
+  const input = document.getElementById("fileInput")
+  if (!input) return console.error("fileInput missing")
+  input.click()
+}
+
+// -------------------------
+// PREVIEWS
 // -------------------------
 function renderPreviews() {
   const container = document.getElementById("preview")
   if (!container) return
 
   container.innerHTML = ""
-
-  console.log("renderPreviews:", selectedFiles.length)
 
   selectedFiles.forEach((file, index) => {
     const url = URL.createObjectURL(file)
@@ -78,7 +121,7 @@ function renderPreviews() {
 
     div.innerHTML = `
       <div class="video-wrapper">
-        <video muted playsinline autoplay loop src="${url}"></video>
+        <video src="${url}" muted playsinline controls></video>
       </div>
 
       <div style="display:flex;gap:6px;justify-content:center;margin-top:6px;">
@@ -115,16 +158,15 @@ window.moveDown = function (i) {
 }
 
 // -------------------------
-// UPLOAD (GUARD FIX)
+// UPLOAD
 // -------------------------
 window.upload = async function () {
-  if (!selectedFiles || selectedFiles.length === 0) {
+  if (!selectedFiles.length) {
     alert("Choose files first")
     return
   }
 
   const form = new FormData()
-
   selectedFiles.forEach(f => form.append("files", f))
 
   const res = await fetch(`${API_URL}/upload`, {
@@ -146,7 +188,7 @@ window.upload = async function () {
 }
 
 // -------------------------
-// POLL
+// POLLING
 // -------------------------
 function poll(jobId) {
   const interval = setInterval(async () => {
@@ -158,32 +200,25 @@ function poll(jobId) {
 
     const data = await res.json()
 
-    const statusEl = document.getElementById("status")
-    const bar = document.getElementById("progress-bar")
-    const container = document.getElementById("progress-container")
+    document.getElementById("status").innerText =
+      `${data.status} ${data.progress || 0}%`
 
-    if (statusEl) {
-      statusEl.innerText = `${data.status} ${data.progress || 0}%`
-    }
-
-    if (container) container.style.display = "block"
-    if (bar) bar.style.width = (data.progress || 0) + "%"
+    document.getElementById("progress-container").style.display = "block"
+    document.getElementById("progress-bar").style.width =
+      (data.progress || 0) + "%"
 
     if (data.status === "done") {
       clearInterval(interval)
 
       const a = document.getElementById("download")
-      if (a) {
-        a.href = data.output_url
-        a.style.display = "block"
-        a.innerText = "DOWNLOAD FINAL VIDEO"
-      }
+      a.href = data.output_url
+      a.style.display = "block"
+      a.innerText = "DOWNLOAD FINAL VIDEO"
     }
 
     if (data.status === "failed") {
       clearInterval(interval)
       alert("processing failed")
     }
-
   }, 1200)
 }
