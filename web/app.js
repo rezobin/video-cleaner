@@ -64,13 +64,15 @@ function renderPreviews() {
 
     const div = document.createElement("div")
 
+    div.className = "file-item"
+    
     div.innerHTML = `
-      <video src="${url}" controls></video>
-      <div>
+    <video src="${url}" controls></video>
+    <div class="file-actions">
         <button onclick="moveUp(${index})">⬆️</button>
         <button onclick="moveDown(${index})">⬇️</button>
         <button onclick="removeFile(${index})">🗑️</button>
-      </div>
+    </div>
     `
 
     container.appendChild(div)
