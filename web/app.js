@@ -5,14 +5,38 @@ const SUPABASE_ANON_KEY = "sb_publishable_DGfn4J71yW2U6oY7beHGDg_Wptvc0Wy"
 
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
-// -------------------------
-// STATE
-// -------------------------
 let session = null
 let selectedFiles = []
 
+
+window.login = async function () {
+  const email = document.getElementById("email").value
+
+  if (!email) {
+    alert("Enter email")
+    return
+  }
+
+  const { error } = await supabaseClient.auth.signInWithOtp({
+    email
+  })
+
+  if (error) {
+    alert(error.message)
+    return
+  }
+
+  alert("Check your email to login")
+}
+
+window.logout = async function () {
+  await supabaseClient.auth.signOut()
+  session = null
+  syncUI()
+}
+
 // -------------------------
-// INIT UI ON LOAD
+// INIT
 // -------------------------
 window.addEventListener("DOMContentLoaded", async () => {
   const { data } = await supabaseClient.auth.getSession()
@@ -24,88 +48,49 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   fileInput.addEventListener("change", (e) => {
     const files = Array.from(e.target.files || [])
-
     if (!files.length) return
 
     selectedFiles = selectedFiles.concat(files)
     renderPreviews()
 
-    // important: allow re-select same files
     e.target.value = ""
   })
 })
 
 // -------------------------
-// AUTH STATE CHANGE
+// AUTH UI
 // -------------------------
 supabaseClient.auth.onAuthStateChange((_, sess) => {
   session = sess
-
-  const auth = document.getElementById("auth-section")
-  const userBox = document.getElementById("user-info")
-  const emailInput = document.getElementById("email")
-
-  if (!auth) return
-
-  if (session) {
-    auth.style.display = "none"
-    if (userBox) userBox.style.display = "block"
-    if (emailInput) emailInput.style.display = "none"
-  } else {
-    auth.style.display = "block"
-    if (userBox) userBox.style.display = "none"
-    if (emailInput) emailInput.style.display = "block"
-  }
+  syncUI()
 })
 
-supabaseClient.auth.onAuthStateChange((_, sess) => {
-  session = sess
-
-  const userBox = document.getElementById("user-info")
-  const authSection = document.getElementById("auth-section")
-
-  if (userBox) userBox.style.display = session ? "block" : "none"
-  if (authSection) authSection.style.display = session ? "none" : "block"
-})
-// -------------------------
-// UI SYNC (IMPORTANT FIX)
-// -------------------------
 function syncUI() {
-  const authSection = document.getElementById("auth-section")
+  const auth = document.getElementById("auth-section")
   const userBox = document.getElementById("user-info")
   const emailInput = document.getElementById("email")
   const userEmail = document.getElementById("user-email")
 
-  const isLogged = !!session
+  const logged = !!session
 
-  if (authSection) {
-    authSection.style.display = isLogged ? "none" : "block"
-  }
+  if (auth) auth.style.display = logged ? "none" : "block"
+  if (userBox) userBox.style.display = logged ? "block" : "none"
+  if (emailInput) emailInput.style.display = logged ? "none" : "block"
 
-  if (userBox) {
-    userBox.style.display = isLogged ? "block" : "none"
-  }
-
-  if (emailInput) {
-    emailInput.style.display = isLogged ? "none" : "block"
-  }
-
-  if (userEmail && isLogged) {
+  if (userEmail && logged) {
     userEmail.innerText = session.user.email
   }
 }
 
 // -------------------------
-// FILE PICKER (TRY NOW FIX)
+// FILE PICKER
 // -------------------------
-window.openFilePicker = function () {
-  const input = document.getElementById("fileInput")
-  if (!input) return console.error("fileInput missing")
-  input.click()
+window.openFilePicker = () => {
+  document.getElementById("fileInput")?.click()
 }
 
 // -------------------------
-// PREVIEWS
+// PREVIEW
 // -------------------------
 function renderPreviews() {
   const container = document.getElementById("preview")
@@ -113,56 +98,31 @@ function renderPreviews() {
 
   container.innerHTML = ""
 
-  selectedFiles.forEach((file, index) => {
+  selectedFiles.forEach((file, i) => {
     const url = URL.createObjectURL(file)
 
-    const div = document.createElement("div")
-    div.className = "file-item"
-
-    div.innerHTML = `
-      <div class="video-wrapper">
-        <video src="${url}" muted playsinline controls></video>
-      </div>
-
-      <div style="display:flex;gap:6px;justify-content:center;margin-top:6px;">
-        <button onclick="moveUp(${index})">↑</button>
-        <button onclick="moveDown(${index})">↓</button>
-        <button onclick="removeFile(${index})">✕</button>
+    container.innerHTML += `
+      <div class="file-item">
+        <div class="video-wrapper">
+          <video src="${url}" muted playsinline controls></video>
+        </div>
+        <button onclick="removeFile(${i})">Remove</button>
       </div>
     `
-
-    container.appendChild(div)
   })
 }
 
-// -------------------------
-// FILE OPS
-// -------------------------
-window.removeFile = function (i) {
+window.removeFile = (i) => {
   selectedFiles.splice(i, 1)
-  renderPreviews()
-}
-
-window.moveUp = function (i) {
-  if (i === 0) return
-  [selectedFiles[i - 1], selectedFiles[i]] =
-    [selectedFiles[i], selectedFiles[i - 1]]
-  renderPreviews()
-}
-
-window.moveDown = function (i) {
-  if (i === selectedFiles.length - 1) return
-  [selectedFiles[i + 1], selectedFiles[i]] =
-    [selectedFiles[i], selectedFiles[i + 1]]
   renderPreviews()
 }
 
 // -------------------------
 // UPLOAD
 // -------------------------
-window.upload = async function () {
+window.upload = async () => {
   if (!selectedFiles.length) {
-    alert("Choose files first")
+    alert("No files")
     return
   }
 
@@ -172,18 +132,17 @@ window.upload = async function () {
   const res = await fetch(`${API_URL}/upload`, {
     method: "POST",
     headers: {
-      "Authorization": session ? "Bearer " + session.access_token : ""
+      Authorization: session ? `Bearer ${session.access_token}` : ""
     },
     body: form
   })
 
   const data = await res.json()
 
-  // 🔴 CAS IMPORTANT
   if (!res.ok) {
     if (data.detail === "GUEST_LIMIT_REACHED") {
-      alert("Limit reached (2 uploads). Please login to continue.")
-      document.getElementById("auth-section").style.display = "block"
+      alert("Limit reached. Please login to continue.")
+      syncUI()
       return
     }
 
@@ -193,23 +152,23 @@ window.upload = async function () {
 
   poll(data.job_id)
 }
+
 // -------------------------
-// POLLING
+// POLL
 // -------------------------
 function poll(jobId) {
   const interval = setInterval(async () => {
     const res = await fetch(`${API_URL}/status/${jobId}`, {
       headers: {
-        "Authorization": session ? "Bearer " + session.access_token : ""
+        Authorization: session ? `Bearer ${session.access_token}` : ""
       }
     })
 
     const data = await res.json()
 
     document.getElementById("status").innerText =
-    `${data.status || "processing"} ${data.progress ?? 0}%`
+      `${data.status || "processing"} ${data.progress ?? 0}%`
 
-    document.getElementById("progress-container").style.display = "block"
     document.getElementById("progress-bar").style.width =
       (data.progress || 0) + "%"
 
@@ -217,14 +176,14 @@ function poll(jobId) {
       clearInterval(interval)
 
       const a = document.getElementById("download")
-      const url = data.output_url || data.url
+      a.href = data.output_url
       a.style.display = "block"
-      a.innerText = "DOWNLOAD FINAL VIDEO"
+      a.innerText = "DOWNLOAD"
     }
 
     if (data.status === "failed") {
       clearInterval(interval)
-      alert("processing failed")
+      alert("failed")
     }
   }, 1200)
 }

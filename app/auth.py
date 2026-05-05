@@ -42,3 +42,14 @@ def ensure_user(user):
 
     except Exception as e:
         print("[ENSURE USER ERROR]", e)
+
+
+def get_user_optional(request: Request):
+    try:
+        from app.auth import get_user
+        auth = request.headers.get("authorization")
+        if not auth:
+            return None
+        return get_user(auth)
+    except:
+        return None
