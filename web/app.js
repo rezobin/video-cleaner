@@ -179,14 +179,20 @@ window.upload = async function () {
 
   const data = await res.json()
 
-  if (!data.job_id) {
+  // 🔴 CAS IMPORTANT
+  if (!res.ok) {
+    if (data.detail === "GUEST_LIMIT_REACHED") {
+      alert("Limit reached (2 uploads). Please login to continue.")
+      document.getElementById("auth-section").style.display = "block"
+      return
+    }
+
     alert(data.detail || "upload failed")
     return
   }
 
   poll(data.job_id)
 }
-
 // -------------------------
 // POLLING
 // -------------------------
@@ -201,7 +207,7 @@ function poll(jobId) {
     const data = await res.json()
 
     document.getElementById("status").innerText =
-      `${data.status} ${data.progress || 0}%`
+    `${data.status || "processing"} ${data.progress ?? 0}%`
 
     document.getElementById("progress-container").style.display = "block"
     document.getElementById("progress-bar").style.width =
@@ -211,7 +217,7 @@ function poll(jobId) {
       clearInterval(interval)
 
       const a = document.getElementById("download")
-      a.href = data.output_url
+      const url = data.output_url || data.url
       a.style.display = "block"
       a.innerText = "DOWNLOAD FINAL VIDEO"
     }

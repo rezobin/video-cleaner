@@ -168,7 +168,7 @@ def process(job):
         r.hset(f"job:{job_id}", mapping={
             "status": "done",
             "progress": 100,
-            "url": url
+            "output_url": url
         })
 
         update_job(job_id, "done", url)
