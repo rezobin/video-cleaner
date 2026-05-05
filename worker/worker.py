@@ -7,20 +7,12 @@ from app.db import update_job
 
 from storage import download, upload, public_url
 from audio.cut import detect_silences, build_segments
-from pipeline import process_video
+from pipeline import cut_video
 
 
 print("=== WORKER START ===", flush=True)
-print("REDIS =", os.getenv("REDIS_URL"), flush=True)
-
-import redis
-print("[REDIS FILE]", redis.__file__, flush=True)
-print("[REDIS VERSION]", getattr(redis, "__version__", None), flush=True)
 
 
-# -------------------------
-# UTILS
-# -------------------------
 def get_duration(path):
     return float(subprocess.check_output([
         "ffprobe", "-v", "error",
@@ -31,13 +23,15 @@ def get_duration(path):
 
 
 def concat(files, output_path):
+    print("[CONCAT START]", flush=True)
 
     with open("/tmp/list.txt", "w") as f:
         for v in files:
             f.write(f"file '{v}'\n")
 
     subprocess.run([
-        "ffmpeg", "-y",
+        "ffmpeg",
+        "-y",
         "-f", "concat",
         "-safe", "0",
         "-i", "/tmp/list.txt",
@@ -45,9 +39,9 @@ def concat(files, output_path):
         output_path
     ], check=True)
 
-# -------------------------
-# MAIN PROCESS
-# -------------------------
+    print("[CONCAT DONE]", flush=True)
+
+
 def process(job):
 
     job_id = job["id"]
@@ -55,19 +49,18 @@ def process(job):
 
     print("[JOB START]", job_id, flush=True)
 
-    # 🔥 UPDATE DB → processing
     update_job(job_id, "processing")
 
-    outputs = []
     temp = []
 
     try:
+        all_segments_files = []
+
         for i, path in enumerate(inputs):
 
             print("[DOWNLOAD]", path, flush=True)
 
             raw = download(path)
-
             if not raw:
                 raise Exception("Download failed")
 
@@ -76,32 +69,35 @@ def process(job):
             with open(raw_path, "wb") as f:
                 f.write(raw)
 
+            print("[DOWNLOADED]", raw_path, flush=True)
+
             temp.append(raw_path)
 
             duration = get_duration(raw_path)
+            print("[DURATION]", duration, flush=True)
 
             silences = detect_silences(raw_path)
             segments = build_segments(duration, silences)
 
-            print(f"[SEGMENTS] {len(segments)}", flush=True)
+            if not segments:
+                raise Exception("No segments")
 
-            out = f"/tmp/{job_id}_{i}_final.mp4"
+            print("[CUTTING SEGMENTS]", len(segments), flush=True)
 
-            print("[PROCESS VIDEO - SINGLE PASS]", flush=True)
+            for j, (start, end) in enumerate(segments):
 
-            process_video(raw_path, segments, out)
+                out = f"/tmp/{job_id}_{i}_{j}.mp4"
 
-            outputs.append(out)
-            temp.append(out)
+                cut_video(raw_path, start, end, out)
 
-        if not outputs:
-            raise Exception("No outputs generated")
+                all_segments_files.append(out)
+                temp.append(out)
 
         final_path = f"/tmp/{job_id}.mp4"
 
-        print("[CONCAT FINAL]", flush=True)
+        print("[FINAL CONCAT]", flush=True)
 
-        concat(outputs, final_path)
+        concat(all_segments_files, final_path)
 
         print("[UPLOAD]", flush=True)
 
@@ -110,17 +106,13 @@ def process(job):
 
         url = public_url(f"{job_id}.mp4")
 
-        # 🔥 UPDATE DB → done
         update_job(job_id, "done", url)
-
-        # 🔥 ACK REDIS
         ack_job(job_id)
 
         print("[DONE]", job_id, flush=True)
 
     except Exception as e:
         print("[ERROR]", repr(e), flush=True)
-
         update_job(job_id, "failed")
 
     finally:
@@ -132,19 +124,13 @@ def process(job):
                 pass
 
 
-# -------------------------
-# LOOP
-# -------------------------
 while True:
-
     try:
         job = pop_job()
 
         if not job:
             time.sleep(1)
             continue
-
-        print("[POP OK]", job, flush=True)
 
         process(job)
 

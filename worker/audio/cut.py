@@ -7,16 +7,22 @@ MIN_SEGMENT = 0.6
 
 
 def detect_silences(video_path):
+    print("[DETECT START]", flush=True)
+
     cmd = [
         "ffmpeg",
         "-hide_banner",
         "-i", video_path,
+
+        "-vn",  # 🔥 ignore video → MASSIVE speed gain
         "-af", f"silencedetect=noise={THRESHOLD}:d={MIN_SILENCE}",
         "-f", "null",
         "-"
     ]
 
     result = subprocess.run(cmd, stderr=subprocess.PIPE, text=True)
+
+    print("[DETECT DONE]", flush=True)
 
     starts = []
     ends = []
@@ -54,4 +60,8 @@ def build_segments(duration, silences):
     if cursor < duration:
         segments.append((cursor, duration))
 
-    return [(s, e) for s, e in segments if (e - s) >= MIN_SEGMENT]
+    segments = [(s, e) for s, e in segments if (e - s) >= MIN_SEGMENT]
+
+    print(f"[SEGMENTS BUILT] {len(segments)}", flush=True)
+
+    return segments
