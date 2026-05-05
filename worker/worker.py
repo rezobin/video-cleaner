@@ -48,6 +48,9 @@ def concat(files, output_path):
 
     print("[CONCAT DONE]", flush=True)
 
+def set_progress(job_id, value):
+    r.hset(f"job:{job_id}", "progress", value)
+
 def process(job):
 
     job_id = job["id"]
@@ -56,6 +59,8 @@ def process(job):
     print("[JOB START]", job_id, flush=True)
 
     update_job(job_id, "processing")
+
+    set_progress(job_id, 5)
 
     temp = []
 
@@ -69,6 +74,8 @@ def process(job):
             print("[DOWNLOAD START]", path, flush=True)
             raw = download(path)
             print("[DOWNLOAD DONE]", path, len(raw) if raw else None, flush=True)
+            set_progress(job_id, 20)
+
             if not raw:
                 raise Exception("Download failed")
 
@@ -85,6 +92,7 @@ def process(job):
             print("[DURATION]", duration, flush=True)
 
             silences = detect_silences(raw_path)
+            set_progress(job_id, 40)
             segments = build_segments(duration, silences)
 
             if not segments:
@@ -101,11 +109,14 @@ def process(job):
                 all_segments_files.append(out)
                 temp.append(out)
 
+            set_progress(job_id, 70)
+
         final_path = f"/tmp/{job_id}.mp4"
 
         print("[FINAL CONCAT]", flush=True)
 
         concat(all_segments_files, final_path)
+        set_progress(job_id, 90)
 
         print("[UPLOAD]", flush=True)
 
@@ -118,6 +129,7 @@ def process(job):
         ack_job(job_id)
 
         print("[DONE]", job_id, flush=True)
+        set_progress(job_id, 100)
 
     except Exception as e:
         print("[ERROR]", repr(e), flush=True)

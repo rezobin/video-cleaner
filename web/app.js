@@ -28,6 +28,16 @@ async function login() {
 
 supabaseClient.auth.onAuthStateChange((_, sess) => {
   session = sess
+
+  if (session) {
+    document.getElementById("user-info").style.display = "block"
+    document.getElementById("user-email").innerText = session.user.email
+
+    document.querySelectorAll("h2").forEach(el => el.style.display = "none")
+    document.getElementById("email").style.display = "none"
+  } else {
+    document.getElementById("user-info").style.display = "none"
+  }
 })
 
 // -------------------------
@@ -54,7 +64,7 @@ function renderPreviews() {
     div.style.padding = "10px"
 
     div.innerHTML = `
-      <video src="${url}" width="200" controls></video>
+      <video src="${url}" controls style="max-width:200px;border-radius:10px"></video>
       <div>
         <button onclick="moveUp(${index})">⬆️</button>
         <button onclick="moveDown(${index})">⬇️</button>
@@ -147,3 +157,11 @@ async function poll(jobId) {
 
   }, 1500)
 }
+
+// -------------------------
+// PROGRESS BAR
+// -------------------------
+
+document.getElementById("progress-container").style.display = "block"
+
+document.getElementById("progress-bar").style.width = data.progress + "%"

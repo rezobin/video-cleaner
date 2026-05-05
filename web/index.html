@@ -2,37 +2,54 @@
 <html>
 <head>
   <title>Video Cleaner</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      max-width: 800px;
-      margin: 40px auto;
-    }
 
-    video {
-      border-radius: 8px;
-    }
+<style>
+body {
+  font-family: system-ui;
+  max-width: 720px;
+  margin: 20px auto;
+  padding: 16px;
+}
 
-    .file-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 12px;
-      padding: 10px;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-    }
+h2 {
+  font-size: 18px;
+  margin-top: 20px;
+}
 
-    button {
-      margin: 5px;
-      padding: 6px 10px;
-      cursor: pointer;
-    }
+button {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  background: white;
+}
 
-    #preview {
-      margin-top: 20px;
-    }
-  </style>
+input {
+  padding: 8px;
+  width: 100%;
+  margin: 6px 0;
+}
+
+.file-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid #eee;
+  border-radius: 12px;
+  margin-bottom: 10px;
+}
+
+video {
+  width: 100%;
+  max-width: 200px;
+  border-radius: 10px;
+}
+
+#preview {
+  display: grid;
+  gap: 10px;
+}
+</style>
 </head>
 
 <body>
@@ -42,6 +59,11 @@
 <input id="email" type="email" placeholder="email" />
 <button onclick="login()">Login</button>
 
+<div id="user-info" style="display:none">
+  Connected as: <span id="user-email"></span>
+  <button onclick="logout()">Logout</button>
+</div>
+
 <hr/>
 
 <h2>Upload videos</h2>
@@ -50,6 +72,12 @@
 <button onclick="upload()">Upload</button>
 
 <p id="status"></p>
+
+<div id="progress-container" style="display:none">
+  <div style="width:100%;background:#eee;border-radius:8px;height:10px;">
+    <div id="progress-bar" style="height:10px;width:0%;background:black;border-radius:8px;"></div>
+  </div>
+</div>
 
 <a id="download" style="display:none" target="_blank">Download final video</a>
 

@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.auth import get_user
 from app.supabase_client import supabase
-from app.job_queue import push_job
+from app.job_queue import push_job, r
 
 app = FastAPI()
 
@@ -20,6 +20,9 @@ app.add_middleware(
 print("=== API BOOTED VERSION X ===", flush=True)
 
 
+# -------------------------
+# UPLOAD
+# -------------------------
 @app.post("/upload")
 def upload(files: list[UploadFile] = File(...), user=Depends(get_user)):
     print("=== UPLOAD START ===", flush=True)
@@ -52,6 +55,7 @@ def upload(files: list[UploadFile] = File(...), user=Depends(get_user)):
             "id": job_id,
             "user_id": user["sub"],
             "status": "queued",
+            "progress": 0,
             "input_paths": inputs
         }).execute()
 
@@ -70,15 +74,37 @@ def upload(files: list[UploadFile] = File(...), user=Depends(get_user)):
         print("[UPLOAD ERROR]", repr(e), flush=True)
         return {"error": str(e)}
 
+
+# -------------------------
+# STATUS (FIX IMPORTANT)
+# -------------------------
 @app.get("/status/{job_id}")
 def status(job_id: str):
-    res = supabase.table("jobs").select("*").eq("id", job_id).execute()
 
-    if not res.data:
-        return {"status": "not_found"}
+    db = supabase.table("jobs").select("*").eq("id", job_id).execute()
 
-    return res.data[0]
+    if not db.data:
+        return {"status": "not_found", "progress": 0}
 
+    job = db.data[0]
+
+    redis_key = f"job:{job_id}"
+    redis_data = r.hgetall(redis_key)
+
+    status = redis_data.get("status") or job.get("status", "unknown")
+    progress = redis_data.get("progress") or job.get("progress", 0)
+    url = redis_data.get("url") or job.get("output_url")
+
+    return {
+        "status": status,
+        "progress": int(progress or 0),
+        "output_url": url
+    }
+
+
+# -------------------------
+# PING
+# -------------------------
 @app.get("/ping")
 def ping():
     print("PING HIT", flush=True)
