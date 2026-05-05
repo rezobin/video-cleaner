@@ -15,11 +15,16 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:5500",
+        "https://video-cleaner-ixce.vercel.app",
+        "https://video-cleaner-8j64.onrender.com"
+    ],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 r = redis.from_url(os.getenv("REDIS_URL"), decode_responses=True)
 
 GUEST_LIMIT = 2
@@ -140,11 +145,12 @@ def upload(
             "job_id": job_id,
             "guest": is_guest
         }
-
     except Exception as e:
-        print("[UPLOAD ERROR]", e)
+        import traceback
+        print("[UPLOAD ERROR]", repr(e))
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
-    
+
 
 @app.get("/status/{job_id}")
 def status(job_id: str):
