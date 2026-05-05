@@ -7,7 +7,7 @@ from app.db import update_job
 
 from storage import download, upload, public_url
 from audio.cut import detect_silences, build_segments
-from pipeline import cut_video
+from pipeline import process_video
 
 
 print("=== WORKER START ===", flush=True)
@@ -85,14 +85,14 @@ def process(job):
 
             print(f"[SEGMENTS] {len(segments)}", flush=True)
 
-            for j, (start, end) in enumerate(segments):
+            out = f"/tmp/{job_id}_{i}_final.mp4"
 
-                out = f"/tmp/{job_id}_{i}_{j}.mp4"
+            print("[PROCESS VIDEO - SINGLE PASS]", flush=True)
 
-                cut_video(raw_path, start, end, out)
+            process_video(raw_path, segments, out)
 
-                outputs.append(out)
-                temp.append(out)
+            outputs.append(out)
+            temp.append(out)
 
         if not outputs:
             raise Exception("No outputs generated")
