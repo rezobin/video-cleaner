@@ -7,7 +7,6 @@
   <style>
     :root {
       --coral: #ff5a5f;
-      --blue: #2563eb;
       --bg: #ffffff;
       --text: #111827;
       --muted: #6b7280;
@@ -29,7 +28,6 @@
       padding: 16px;
     }
 
-    /* NAV */
     .navbar {
       position: sticky;
       top: 0;
@@ -50,43 +48,26 @@
       background: var(--coral);
       color: white;
       border: none;
-      padding: 8px 12px;
+      padding: 12px 16px;
       border-radius: 10px;
       cursor: pointer;
       font-weight: 800;
       font-size: 16px;
-      padding: 12px 16px;
     }
 
-    /* HERO */
-    .hero {
-      margin: 20px 0;
-    }
+    .hero { margin: 20px 0; }
+    .hero h1 { font-size: 22px; }
+    .hero p { color: var(--muted); margin: 4px 0; }
 
-    .hero h1 {
-      font-size: 22px;
-    }
-
-    .hero p {
-      color: var(--muted);
-      margin: 4px 0;
-    }
-
-    /* FILE INPUT */
-    input[type="file"] {
-      display: none;
-    }
+    input[type="file"] { display: none; }
 
     .file-btn {
       display: inline-flex;
-      align-items: center;
       justify-content: center;
-      background: white;
       border: 1px solid var(--border);
       padding: 10px 12px;
       border-radius: 10px;
       cursor: pointer;
-      max-width: 160px;
     }
 
     button {
@@ -94,7 +75,6 @@
       border: 1px solid var(--border);
       padding: 10px 12px;
       cursor: pointer;
-      max-width: 220px;
       font-size: 16px;
     }
 
@@ -108,7 +88,44 @@
       padding: 14px 18px;
     }
 
-    /* PREVIEW */
+    /* FINAL VIDEO (IMPORTANT) */
+    #final-video {
+      width: 80%;
+      display: block;
+      margin: 20px auto;
+      border-radius: 12px;
+    }
+
+    #action-box {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin: 10px 0;
+    }
+
+    #status-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    #spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid #ddd;
+      border-top: 2px solid var(--coral);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: none;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0); }
+      100% { transform: rotate(360deg); }
+    }
+
     #preview {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -139,7 +156,12 @@
       object-fit: cover;
     }
 
-    /* PROGRESS */
+    .controls {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
     #progress-container {
       margin-top: 10px;
       background: #eee;
@@ -153,70 +175,6 @@
       width: 0%;
       background: var(--coral);
     }
-
-    /* -------------------------
-      AUTH CLEAN UI
-    -------------------------- */
-
-    .auth-section {
-      margin-top: 40px;
-      padding-top: 20px;
-      border-top: 1px solid var(--border);
-    }
-
-    .auth-subtitle {
-      color: var(--muted);
-      margin-bottom: 12px;
-    }
-
-    /* input + button inline */
-    .auth-row {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-    }
-
-    /* email input stylé */
-    .auth-row input {
-      flex: 1;
-      padding: 10px 12px;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      outline: none;
-      font-size: 14px;
-    }
-
-    .auth-row input:focus {
-      border-color: var(--coral);
-    }
-
-    /* login button */
-    .auth-row button {
-      padding: 10px 14px;
-      border-radius: 10px;
-      border: none;
-      background: var(--coral);
-      color: white;
-      cursor: pointer;
-      max-width: 100px;
-      white-space: nowrap;
-    }
-
-    /* mobile stack */
-    @media (max-width: 600px) {
-      .auth-row {
-        flex-direction: column;
-        align-items: stretch;
-      }
-
-      .auth-row button {
-        max-width: 100%;
-      }
-    }
-
-    @media (max-width: 600px) {
-      #preview { grid-template-columns: 1fr; }
-    }
   </style>
 </head>
 
@@ -229,6 +187,21 @@
 
 <div class="container">
 
+  <!-- FINAL -->
+  <div id="action-box"></div>
+  <video id="final-video" controls style="display:none"></video>
+
+  <!-- STATUS -->
+  <div id="status-row">
+    <div id="spinner"></div>
+    <p id="status"></p>
+  </div>
+
+  <div id="progress-container">
+    <div id="progress-bar"></div>
+  </div>
+
+  <!-- HERO -->
   <div class="hero">
     <h1>Transform your raw videos into TikTok-ready clips</h1>
     <p>No editing required</p>
@@ -236,40 +209,14 @@
     <p>Just you, enhanced</p>
   </div>
 
-  <div id="progress-container">
-    <div id="progress-bar"></div>
-  </div>
-
-  <a id="download" style="display:none" download></a>
-
-  <div id="preview"></div>
-
-  <label class="file-btn" for="fileInput">Choose files</label>
+  <label class="file-btn" for="fileInput">Select videos</label>
   <input id="fileInput" type="file" multiple accept="video/*">
 
-  <button class="primary" onclick="upload()">Generate watchable content</button>
+  <button id="generate-btn" class="primary" onclick="upload()">
+    Generate watchable content
+  </button>
 
-  <p id="status"></p>
-
-
-  <!-- AUTH -->
-  <div id="auth-section" class="auth-section">
-    <h2>Access</h2>
-
-    <p class="auth-subtitle">
-      Generate more clean talking videos 
-    </p>
-
-    <div class="auth-row">
-      <input id="email" type="email" placeholder="Enter your email" />
-      <button onclick="login()">Login</button>
-    </div>
-
-    <div id="user-info" style="display:none">
-      Connected as <div id="user-email"></div>
-      <button onclick="logout()">Logout</button>
-    </div>
-  </div>
+  <div id="preview"></div>
 
 </div>
 

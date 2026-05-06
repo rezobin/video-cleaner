@@ -13,7 +13,7 @@ let lastLoginAttempt = 0
 // LOGIN
 // -------------------------
 window.login = async function () {
-  const email = document.getElementById("email").value
+  const email = document.getElementById("email")?.value
   if (!email) return alert("Enter email")
 
   const now = Date.now()
@@ -33,7 +33,6 @@ window.login = async function () {
 window.logout = async function () {
   await supabaseClient.auth.signOut()
   session = null
-  syncUI()
 }
 
 // -------------------------
@@ -43,42 +42,14 @@ window.addEventListener("DOMContentLoaded", async () => {
   const { data } = await supabaseClient.auth.getSession()
   session = data.session
 
-  syncUI()
-
   const fileInput = document.getElementById("fileInput")
 
   fileInput.addEventListener("change", (e) => {
-    const files = Array.from(e.target.files || [])
-    if (!files.length) return
-
-    selectedFiles = selectedFiles.concat(files)
+    selectedFiles = [...selectedFiles, ...Array.from(e.target.files || [])]
     renderPreviews()
-
     e.target.value = ""
   })
 })
-
-// -------------------------
-// AUTH STATE
-// -------------------------
-supabaseClient.auth.onAuthStateChange((_, sess) => {
-  session = sess
-  syncUI()
-})
-
-function syncUI() {
-  const auth = document.getElementById("auth-section")
-  const userBox = document.getElementById("user-info")
-  const emailInput = document.getElementById("email")
-
-  const logged = !!session
-
-  if (auth) auth.style.display = logged ? "none" : "block"
-  if (userBox) userBox.style.display = logged ? "block" : "none"
-  if (emailInput) emailInput.style.display = logged ? "none" : "block"
-
-  updateUserUI()
-}
 
 // -------------------------
 // FILE PICKER
@@ -88,16 +59,13 @@ window.openFilePicker = () => {
 }
 
 // -------------------------
-// PREVIEW + ORDER
+// PREVIEW
 // -------------------------
 function renderPreviews() {
   const container = document.getElementById("preview")
-  if (!container) return
-
-  const scrollY = window.scrollY
   container.innerHTML = ""
 
-  selectedFiles.forEach((file, index) => {
+  selectedFiles.forEach((file, i) => {
     const url = URL.createObjectURL(file)
 
     const div = document.createElement("div")
@@ -105,33 +73,29 @@ function renderPreviews() {
 
     div.innerHTML = `
       <div class="video-wrapper">
-        <video src="${url}" muted playsinline controls></video>
+        <video src="${url}" controls muted></video>
       </div>
 
-      <div style="display:flex;gap:6px;justify-content:center;margin-top:8px;">
-        <button type="button" onclick="moveUp(${index})">↑</button>
-        <button type="button" onclick="moveDown(${index})">↓</button>
-        <button type="button" onclick="removeFile(${index})">✕</button>
+      <div class="controls">
+        <button onclick="moveUp(${i})">↑</button>
+        <button onclick="moveDown(${i})">↓</button>
+        <button onclick="removeFile(${i})">✕</button>
       </div>
     `
 
     container.appendChild(div)
   })
-
-  window.scrollTo(0, scrollY)
 }
 
-window.moveUp = function (i) {
+window.moveUp = (i) => {
   if (i === 0) return
-  [selectedFiles[i - 1], selectedFiles[i]] =
-    [selectedFiles[i], selectedFiles[i - 1]]
+  [selectedFiles[i-1], selectedFiles[i]] = [selectedFiles[i], selectedFiles[i-1]]
   renderPreviews()
 }
 
-window.moveDown = function (i) {
+window.moveDown = (i) => {
   if (i === selectedFiles.length - 1) return
-  [selectedFiles[i + 1], selectedFiles[i]] =
-    [selectedFiles[i], selectedFiles[i + 1]]
+  [selectedFiles[i+1], selectedFiles[i]] = [selectedFiles[i], selectedFiles[i+1]]
   renderPreviews()
 }
 
@@ -141,16 +105,15 @@ window.removeFile = (i) => {
 }
 
 // -------------------------
-// UPLOAD (FIX IMPORTANT)
+// UPLOAD
 // -------------------------
 window.upload = async () => {
   if (!selectedFiles.length) return alert("No files")
 
-  const form = new FormData()
+  setLoading(true)
 
-  selectedFiles.forEach(f => {
-    form.append("files", f, f.name)
-  })
+  const form = new FormData()
+  selectedFiles.forEach(f => form.append("files", f, f.name))
 
   const res = await fetch(`${API_URL}/upload`, {
     method: "POST",
@@ -163,10 +126,7 @@ window.upload = async () => {
   const data = await res.json()
 
   if (!res.ok) {
-    if (data.detail === "GUEST_LIMIT_REACHED") {
-      alert("Limit reached. Please login.")
-      return
-    }
+    setLoading(false)
     alert(data.detail || "upload failed")
     return
   }
@@ -182,27 +142,27 @@ function poll(jobId) {
     const res = await fetch(`${API_URL}/status/${jobId}`)
     const data = await res.json()
 
-    const status = data.status || "processing"
+    const status = data.status
     const progress = data.progress ?? 0
 
-    document.getElementById("status").innerText =
-      `${status} ${progress}%`
+    document.getElementById("status").innerText = `${status} ${progress}%`
 
-    document.getElementById("progress-container").style.display = "block"
+    const spinner = document.getElementById("spinner")
+    spinner.style.display = status === "done" ? "none" : "block"
+
     document.getElementById("progress-bar").style.width = progress + "%"
 
     if (status === "done") {
       clearInterval(interval)
+      setLoading(false)
 
-      const url = data.output_url
-      if (!url) return
-
-      showFinalVideo(url)
-      attachDownloadButton(url)
+      showFinal(data.output_url)
+      showActions(data.output_url)
     }
 
     if (status === "failed") {
       clearInterval(interval)
+      setLoading(false)
       alert("failed")
     }
   }, 1000)
@@ -211,61 +171,67 @@ function poll(jobId) {
 // -------------------------
 // FINAL VIDEO
 // -------------------------
-function showFinalVideo(url) {
-  let video = document.getElementById("final-video")
-
-  if (!video) {
-    video = document.createElement("video")
-    video.id = "final-video"
-    video.controls = true
-    video.style.width = "100%"
-    video.style.marginTop = "16px"
-
-    document.querySelector(".container").appendChild(video)
-  }
-
+function showFinal(url) {
+  const video = document.getElementById("final-video")
   video.src = url
+  video.style.display = "block"
 }
 
 // -------------------------
-// DOWNLOAD BUTTON (UNIVERSAL FIX)
+// ACTIONS
 // -------------------------
-function attachDownloadButton(url) {
-  let btn = document.getElementById("download-btn")
+function showActions(url) {
+  const box = document.getElementById("action-box")
 
-  if (!btn) {
-    btn = document.createElement("button")
-    btn.id = "download-btn"
-    btn.className = "primary"
-    btn.innerText = "Download video"
-
-    document.querySelector(".container").appendChild(btn)
-  }
-
-  btn.onclick = () => downloadVideo(url)
+  box.innerHTML = `
+    <button onclick="downloadVideo('${url}')">Download</button>
+    <button onclick="shareVideo('${url}')">Share</button>
+    <button onclick="newVideo()">New video</button>
+  `
 }
 
 // -------------------------
-// FORCE DOWNLOAD (ALL DEVICES)
+// DOWNLOAD (ROBUST)
 // -------------------------
-window.downloadVideo = function (url) {
+window.downloadVideo = (url) => {
   const a = document.createElement("a")
   a.href = url
   a.download = "talklean.mp4"
   a.target = "_blank"
-
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
 }
 
 // -------------------------
-// USER UI
+// SHARE
 // -------------------------
-function updateUserUI() {
-  const userEmail = document.getElementById("user-email")
+window.shareVideo = async (url) => {
+  if (navigator.share) {
+    await navigator.share({ url })
+  } else {
+    window.open(url, "_blank")
+  }
+}
 
-  if (session?.user && userEmail) {
-    userEmail.innerText = `Welcome, ${session.user.email}`
+// -------------------------
+// RESET
+// -------------------------
+window.newVideo = () => {
+  location.reload()
+}
+
+// -------------------------
+// LOADING
+// -------------------------
+function setLoading(state) {
+  const btn = document.getElementById("generate-btn")
+
+  if (state) {
+    btn.innerText = "Processing..."
+    btn.disabled = true
+  } else {
+    btn.innerText = "Generate watchable content"
+    btn.disabled = false
   }
 }
