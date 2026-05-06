@@ -26,25 +26,37 @@ window.addEventListener("DOMContentLoaded", async () => {
 })
 
 // -------------------------
+// AUTH STATE CHANGE
+// -------------------------
+supabaseClient.auth.onAuthStateChange((_, sess) => {
+  session = sess
+  syncUI()
+
+  // 🔥 débloque bouton après login
+  if (sess) {
+    const btn = document.getElementById("generate-btn")
+    if (btn) btn.disabled = false
+  }
+})
+
+// -------------------------
 // AUTH UI
 // -------------------------
 function syncUI() {
   const auth = document.getElementById("auth-section")
   const userBox = document.getElementById("user-info")
+  const userEmail = document.getElementById("user-email")
 
-  if (!auth || !userBox) return
+  if (!auth || !userBox || !userEmail) return
 
   const logged = !!session
 
   auth.style.display = logged ? "none" : "block"
   userBox.style.display = logged ? "block" : "none"
 
-  if (logged) {
-    document.getElementById("user-email").innerText = session.user.email
+  if (logged && session.user) {
+    userEmail.innerText = "Connected as " + session.user.email
   }
-
-  document.getElementById("user-email").innerText =
-  "Connected as " + session.user.email
 }
 
 // -------------------------
@@ -65,6 +77,23 @@ window.logout = async () => {
 }
 
 // -------------------------
+// LOGIN GATE (🔥 IMPORTANT)
+// -------------------------
+function showLoginGate() {
+  document.getElementById("status").innerText =
+    "Free limit reached — login to continue"
+
+  const auth = document.getElementById("auth-section")
+  if (auth) {
+    auth.style.display = "block"
+    auth.scrollIntoView({ behavior: "smooth" })
+  }
+
+  const btn = document.getElementById("generate-btn")
+  if (btn) btn.disabled = true
+}
+
+// -------------------------
 // FILE PICKER
 // -------------------------
 window.openFilePicker = () => {
@@ -76,8 +105,7 @@ window.openFilePicker = () => {
 // -------------------------
 function renderPreviews() {
   const container = document.getElementById("preview")
-
-  const scrollY = window.scrollY // ✅ CRITICAL FIX
+  const scrollY = window.scrollY
 
   container.innerHTML = ""
 
@@ -102,7 +130,7 @@ function renderPreviews() {
     container.appendChild(div)
   })
 
-  window.scrollTo(0, scrollY) // ✅ RESTORE POSITION
+  window.scrollTo(0, scrollY)
 }
 
 window.moveUp = (i) => {
@@ -150,7 +178,7 @@ window.upload = async () => {
     setLoading(false)
 
     if (data.detail === "GUEST_LIMIT_REACHED") {
-      alert("Limit reached. Please login.")
+      showLoginGate() // 🔥 REPLACE ALERT
       return
     }
 
@@ -182,6 +210,12 @@ function poll(jobId) {
       showFinal(data.output_url)
       showActions(data.output_url)
       hideUploadUI()
+    }
+
+    if (status === "failed") {
+      clearInterval(interval)
+      setLoading(false)
+      alert("Processing failed")
     }
 
   }, 1000)
