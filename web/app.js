@@ -101,6 +101,8 @@ function renderPreviews() {
   const container = document.getElementById("preview")
   if (!container) return
 
+  const scrollY = window.scrollY
+
   container.innerHTML = ""
 
   selectedFiles.forEach((file, index) => {
@@ -115,15 +117,18 @@ function renderPreviews() {
       </div>
 
       <div style="display:flex;gap:6px;justify-content:center;margin-top:8px;">
-        <button onclick="moveUp(${index})">↑</button>
-        <button onclick="moveDown(${index})">↓</button>
-        <button onclick="removeFile(${index})">✕</button>
+        <button type="button" onclick="moveUp(${index})">↑</button>
+        <button type="button" onclick="moveDown(${index})">↓</button>
+        <button type="button" onclick="removeFile(${index})">✕</button>
       </div>
     `
 
     container.appendChild(div)
   })
+
+  window.scrollTo(0, scrollY)
 }
+
 
 window.moveUp = function (i) {
   if (i === 0) return
