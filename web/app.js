@@ -116,6 +116,26 @@ function renderPreviews() {
   })
 }
 
+window.moveUp = function (i) {
+  if (i === 0) return
+
+  const tmp = selectedFiles[i - 1]
+  selectedFiles[i - 1] = selectedFiles[i]
+  selectedFiles[i] = tmp
+
+  renderPreviews()
+}
+
+window.moveDown = function (i) {
+  if (i === selectedFiles.length - 1) return
+
+  const tmp = selectedFiles[i + 1]
+  selectedFiles[i + 1] = selectedFiles[i]
+  selectedFiles[i] = tmp
+
+  renderPreviews()
+}
+
 window.removeFile = (i) => {
   selectedFiles.splice(i, 1)
   renderPreviews()
