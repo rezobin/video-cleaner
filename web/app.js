@@ -14,6 +14,59 @@ window.addEventListener("DOMContentLoaded", () => {
 })
 
 // -------------------------
+// INIT AUTH
+// -------------------------
+window.addEventListener("DOMContentLoaded", async () => {
+  const { data } = await supabaseClient.auth.getSession()
+  session = data.session
+  syncUI()
+
+  document.getElementById("fileInput").addEventListener("change", (e) => {
+    selectedFiles = [...selectedFiles, ...Array.from(e.target.files)]
+    renderPreviews()
+  })
+})
+
+supabaseClient.auth.onAuthStateChange((_, sess) => {
+  session = sess
+  syncUI()
+})
+
+// -------------------------
+// AUTH UI
+// -------------------------
+function syncUI() {
+  const auth = document.getElementById("auth-section")
+  const userBox = document.getElementById("user-info")
+
+  if (!auth || !userBox) return
+
+  const logged = !!session
+
+  auth.style.display = logged ? "none" : "block"
+  userBox.style.display = logged ? "block" : "none"
+
+  if (logged) {
+    document.getElementById("user-email").innerText = session.user.email
+  }
+}
+
+// -------------------------
+window.login = async () => {
+  const email = document.getElementById("email").value
+  if (!email) return alert("Enter email")
+
+  const { error } = await supabaseClient.auth.signInWithOtp({ email })
+  if (error) return alert(error.message)
+
+  alert("Check email")
+}
+
+window.logout = async () => {
+  await supabaseClient.auth.signOut()
+}
+
+// -------------------------
 // FILE PICKER
 // -------------------------
 window.openFilePicker = () => {

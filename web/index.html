@@ -181,6 +181,23 @@
       border: none;
       font-weight: 700;
     }
+
+    /* AUTH */
+    .auth-section {
+      margin-top: 40px;
+      border-top: 1px solid var(--border);
+      padding-top: 20px;
+    }
+
+    .auth-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .auth-row input {
+      flex: 1;
+      padding: 10px;
+    }
   </style>
 </head>
 
@@ -215,14 +232,28 @@
   </div>
 
   <!-- UPLOAD -->
-  <label class="file-btn" id="select-btn" for="fileInput">Select videos</label>
+  <label class="file-btn" id="select-btn" for="fileInput">1. Select videos</label>
   <input id="fileInput" type="file" multiple accept="video/*">
 
   <button id="generate-btn" class="primary" onclick="upload()">
-    Generate watchable content
+    2. Generate watchable content
   </button>
 
   <div id="preview"></div>
+
+
+  <!-- AUTH -->
+  <div id="auth-section" class="auth-section">
+    <div class="auth-row">
+      <input id="email" type="email" placeholder="Enter email">
+      <button onclick="login()">Login</button>
+    </div>
+
+    <div id="user-info" style="display:none">
+      <div id="user-email"></div>
+      <button onclick="logout()">Logout</button>
+    </div>
+  </div>
 
 </div>
 
