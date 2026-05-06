@@ -94,17 +94,25 @@ function renderPreviews() {
 
   container.innerHTML = ""
 
-  selectedFiles.forEach((file, i) => {
+  selectedFiles.forEach((file, index) => {
     const url = URL.createObjectURL(file)
 
-    container.innerHTML += `
-      <div class="file-item">
-        <div class="video-wrapper">
-          <video src="${url}" muted playsinline controls></video>
-        </div>
-        <button onclick="removeFile(${i})">Remove</button>
+    const div = document.createElement("div")
+    div.className = "file-item"
+
+    div.innerHTML = `
+      <div class="video-wrapper">
+        <video src="${url}" muted playsinline controls></video>
+      </div>
+
+      <div style="display:flex;gap:6px;justify-content:center;margin-top:8px;">
+        <button onclick="moveUp(${index})">↑</button>
+        <button onclick="moveDown(${index})">↓</button>
+        <button onclick="removeFile(${index})">✕</button>
       </div>
     `
+
+    container.appendChild(div)
   })
 }
 
@@ -117,13 +125,14 @@ window.removeFile = (i) => {
 // UPLOAD
 // -------------------------
 window.upload = async () => {
-  if (!selectedFiles.length) {
-    alert("No files")
-    return
-  }
+  if (!selectedFiles.length) return alert("No files")
 
   const form = new FormData()
-  selectedFiles.forEach(f => form.append("files", f))
+
+  // IMPORTANT: ordre contrôlé par array JS
+  selectedFiles.forEach((f, i) => {
+    form.append("files", f, f.name)
+  })
 
   const res = await fetch(`${API_URL}/upload`, {
     method: "POST",
@@ -138,10 +147,8 @@ window.upload = async () => {
   if (!res.ok) {
     if (data.detail === "GUEST_LIMIT_REACHED") {
       alert("Limit reached. Please login to continue.")
-      syncUI()
       return
     }
-
     alert(data.detail || "upload failed")
     return
   }
