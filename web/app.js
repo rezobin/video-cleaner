@@ -7,33 +7,25 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 let session = null
 let selectedFiles = []
-
-
 let lastLoginAttempt = 0
 
+// -------------------------
+// LOGIN
+// -------------------------
 window.login = async function () {
   const email = document.getElementById("email").value
-
   if (!email) return alert("Enter email")
 
   const now = Date.now()
-
-  // anti spam (30s)
   if (now - lastLoginAttempt < 30000) {
     alert("Wait before retrying")
     return
   }
-
   lastLoginAttempt = now
 
-  const { error } = await supabaseClient.auth.signInWithOtp({
-    email
-  })
+  const { error } = await supabaseClient.auth.signInWithOtp({ email })
 
-  if (error) {
-    alert(error.message)
-    return
-  }
+  if (error) return alert(error.message)
 
   alert("Check your email")
 }
@@ -67,7 +59,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 })
 
 // -------------------------
-// AUTH UI
+// AUTH STATE
 // -------------------------
 supabaseClient.auth.onAuthStateChange((_, sess) => {
   session = sess
@@ -87,6 +79,7 @@ function syncUI() {
 
   updateUserUI()
 }
+
 // -------------------------
 // FILE PICKER
 // -------------------------
@@ -95,14 +88,13 @@ window.openFilePicker = () => {
 }
 
 // -------------------------
-// PREVIEW
+// PREVIEW + ORDER UI
 // -------------------------
 function renderPreviews() {
   const container = document.getElementById("preview")
   if (!container) return
 
   const scrollY = window.scrollY
-
   container.innerHTML = ""
 
   selectedFiles.forEach((file, index) => {
@@ -129,24 +121,17 @@ function renderPreviews() {
   window.scrollTo(0, scrollY)
 }
 
-
 window.moveUp = function (i) {
   if (i === 0) return
-
-  const tmp = selectedFiles[i - 1]
-  selectedFiles[i - 1] = selectedFiles[i]
-  selectedFiles[i] = tmp
-
+  [selectedFiles[i - 1], selectedFiles[i]] =
+    [selectedFiles[i], selectedFiles[i - 1]]
   renderPreviews()
 }
 
 window.moveDown = function (i) {
   if (i === selectedFiles.length - 1) return
-
-  const tmp = selectedFiles[i + 1]
-  selectedFiles[i + 1] = selectedFiles[i]
-  selectedFiles[i] = tmp
-
+  [selectedFiles[i + 1], selectedFiles[i]] =
+    [selectedFiles[i], selectedFiles[i + 1]]
   renderPreviews()
 }
 
@@ -162,11 +147,7 @@ window.upload = async () => {
   if (!selectedFiles.length) return alert("No files")
 
   const form = new FormData()
-
-  // IMPORTANT: ordre contrôlé par array JS
-  selectedFiles.forEach((f, i) => {
-    form.append("files", f, f.name)
-  })
+  selectedFiles.forEach(f => form.append("files", f, f.name))
 
   const res = await fetch(`${API_URL}/upload`, {
     method: "POST",
@@ -180,7 +161,7 @@ window.upload = async () => {
 
   if (!res.ok) {
     if (data.detail === "GUEST_LIMIT_REACHED") {
-      alert("Limit reached. Please login to continue.")
+      alert("Limit reached. Please login.")
       return
     }
     alert(data.detail || "upload failed")
@@ -191,7 +172,7 @@ window.upload = async () => {
 }
 
 // -------------------------
-// POLL
+// POLL JOB
 // -------------------------
 function poll(jobId) {
   const interval = setInterval(async () => {
@@ -211,13 +192,10 @@ function poll(jobId) {
       clearInterval(interval)
 
       const url = data.output_url
+      if (!url) return
 
-      if (url) {
-        const a = document.getElementById("download")
-        a.href = url
-        a.style.display = "block"
-        a.innerText = "DOWNLOAD FINAL VIDEO"
-      }
+      showFinalVideo(url)
+      attachShareButton(url)
     }
 
     if (status === "failed") {
@@ -227,15 +205,82 @@ function poll(jobId) {
   }, 1000)
 }
 
+// -------------------------
+// FINAL VIDEO PREVIEW
+// -------------------------
+function showFinalVideo(url) {
+  let video = document.getElementById("final-video")
 
+  if (!video) {
+    video = document.createElement("video")
+    video.id = "final-video"
+    video.controls = true
+    video.style.width = "100%"
+    video.style.marginTop = "16px"
 
+    document.querySelector(".container").appendChild(video)
+  }
 
+  video.src = url
+}
+
+// -------------------------
+// SHARE BUTTON (FIXED)
+// -------------------------
+function attachShareButton(url) {
+  let shareBtn = document.getElementById("share-btn")
+
+  if (!shareBtn) {
+    shareBtn = document.createElement("button")
+    shareBtn.id = "share-btn"
+    shareBtn.className = "primary"
+    shareBtn.innerText = "Share video"
+
+    document.querySelector(".container").appendChild(shareBtn)
+  }
+
+  shareBtn.onclick = () => shareVideo(url)
+}
+
+// -------------------------
+// SHARE API
+// -------------------------
+window.shareVideo = async function (url) {
+  try {
+    if (navigator.share) {
+      await navigator.share({
+        title: "My video",
+        text: "Check this out",
+        url
+      })
+    } else {
+      alert("Sharing not supported, copying link")
+
+      await navigator.clipboard.writeText(url)
+    }
+  } catch (e) {
+    console.log("share cancelled")
+  }
+}
+
+// -------------------------
+// DOWNLOAD (fallback robust)
+// -------------------------
+window.downloadVideo = async function (url) {
+  const a = document.createElement("a")
+  a.href = url
+  a.download = "talklean.mp4"
+  a.target = "_blank"
+  a.click()
+}
+
+// -------------------------
+// USER UI
+// -------------------------
 function updateUserUI() {
   const userEmail = document.getElementById("user-email")
 
-  if (session && session.user) {
-    if (userEmail) {
-      userEmail.innerText = `Welcome, ${session.user.email}`
-    }
+  if (session?.user && userEmail) {
+    userEmail.innerText = `Welcome, ${session.user.email}`
   }
 }
