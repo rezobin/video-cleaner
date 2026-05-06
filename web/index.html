@@ -164,6 +164,7 @@
 
     #progress-container {
       margin-top: 10px;
+      margin-bottom: 10px;
       background: #eee;
       height: 8px;
       border-radius: 999px;
@@ -208,13 +209,13 @@
     <div id="progress-bar"></div>
   </div>
 
+  <button id="generate-btn" class="primary" onclick="upload()">
+    Generate watchable content
+  </button>
 
   <label class="file-btn" for="fileInput">Select videos</label>
   <input id="fileInput" type="file" multiple accept="video/*">
 
-  <button id="generate-btn" class="primary" onclick="upload()">
-    Generate watchable content
-  </button>
 
   <div id="preview"></div>
 

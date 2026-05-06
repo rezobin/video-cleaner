@@ -17,14 +17,10 @@ window.login = async function () {
   if (!email) return alert("Enter email")
 
   const now = Date.now()
-  if (now - lastLoginAttempt < 30000) {
-    alert("Wait before retrying")
-    return
-  }
+  if (now - lastLoginAttempt < 30000) return alert("Wait before retrying")
   lastLoginAttempt = now
 
   const { error } = await supabaseClient.auth.signInWithOtp({ email })
-
   if (error) return alert(error.message)
 
   alert("Check your email")
@@ -112,6 +108,8 @@ window.upload = async () => {
 
   setLoading(true)
 
+  hideEditorUI()
+
   const form = new FormData()
   selectedFiles.forEach(f => form.append("files", f, f.name))
 
@@ -127,6 +125,7 @@ window.upload = async () => {
 
   if (!res.ok) {
     setLoading(false)
+    showEditorUI()
     alert(data.detail || "upload failed")
     return
   }
@@ -147,8 +146,8 @@ function poll(jobId) {
 
     document.getElementById("status").innerText = `${status} ${progress}%`
 
-    const spinner = document.getElementById("spinner")
-    spinner.style.display = status === "done" ? "none" : "block"
+    document.getElementById("spinner").style.display =
+      status === "done" ? "none" : "block"
 
     document.getElementById("progress-bar").style.width = progress + "%"
 
@@ -164,6 +163,7 @@ function poll(jobId) {
       clearInterval(interval)
       setLoading(false)
       alert("failed")
+      showEditorUI()
     }
   }, 1000)
 }
@@ -178,29 +178,36 @@ function showFinal(url) {
 }
 
 // -------------------------
-// ACTIONS
+// ACTIONS (CTA STYLE)
 // -------------------------
 function showActions(url) {
   const box = document.getElementById("action-box")
 
   box.innerHTML = `
-    <button onclick="downloadVideo('${url}')">Download</button>
-    <button onclick="shareVideo('${url}')">Share</button>
-    <button onclick="newVideo()">New video</button>
+    <button class="nav-cta" onclick="downloadVideo('${url}')">Download</button>
+    <button class="nav-cta" onclick="shareVideo('${url}')">Share</button>
+    <button class="nav-cta" onclick="newVideo()">New video</button>
   `
 }
 
 // -------------------------
-// DOWNLOAD (ROBUST)
+// DOWNLOAD (REAL FIX)
 // -------------------------
-window.downloadVideo = (url) => {
+window.downloadVideo = async (url) => {
+  const res = await fetch(url)
+  const blob = await res.blob()
+
+  const blobUrl = window.URL.createObjectURL(blob)
+
   const a = document.createElement("a")
-  a.href = url
+  a.href = blobUrl
   a.download = "talklean.mp4"
-  a.target = "_blank"
+
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
+
+  window.URL.revokeObjectURL(blobUrl)
 }
 
 // -------------------------
@@ -208,7 +215,10 @@ window.downloadVideo = (url) => {
 // -------------------------
 window.shareVideo = async (url) => {
   if (navigator.share) {
-    await navigator.share({ url })
+    await navigator.share({
+      title: "Talklean video",
+      url
+    })
   } else {
     window.open(url, "_blank")
   }
@@ -219,6 +229,23 @@ window.shareVideo = async (url) => {
 // -------------------------
 window.newVideo = () => {
   location.reload()
+}
+
+// -------------------------
+// UI STATE CONTROL
+// -------------------------
+function hideEditorUI() {
+  document.getElementById("preview").style.display = "none"
+  document.getElementById("fileInput").style.display = "none"
+  document.querySelector("label.file-btn").style.display = "none"
+  document.getElementById("generate-btn").style.display = "none"
+}
+
+function showEditorUI() {
+  document.getElementById("preview").style.display = "grid"
+  document.getElementById("fileInput").style.display = "block"
+  document.querySelector("label.file-btn").style.display = "inline-flex"
+  document.getElementById("generate-btn").style.display = "block"
 }
 
 // -------------------------
