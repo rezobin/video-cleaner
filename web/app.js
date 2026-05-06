@@ -88,7 +88,7 @@ window.openFilePicker = () => {
 }
 
 // -------------------------
-// PREVIEW + ORDER UI
+// PREVIEW + ORDER
 // -------------------------
 function renderPreviews() {
   const container = document.getElementById("preview")
@@ -141,13 +141,16 @@ window.removeFile = (i) => {
 }
 
 // -------------------------
-// UPLOAD
+// UPLOAD (FIX IMPORTANT)
 // -------------------------
 window.upload = async () => {
   if (!selectedFiles.length) return alert("No files")
 
   const form = new FormData()
-  selectedFiles.forEach(f => form.append("files", f, f.name))
+
+  selectedFiles.forEach(f => {
+    form.append("files", f, f.name)
+  })
 
   const res = await fetch(`${API_URL}/upload`, {
     method: "POST",
@@ -172,7 +175,7 @@ window.upload = async () => {
 }
 
 // -------------------------
-// POLL JOB
+// POLL
 // -------------------------
 function poll(jobId) {
   const interval = setInterval(async () => {
@@ -195,7 +198,7 @@ function poll(jobId) {
       if (!url) return
 
       showFinalVideo(url)
-      attachShareButton(url)
+      attachDownloadButton(url)
     }
 
     if (status === "failed") {
@@ -206,7 +209,7 @@ function poll(jobId) {
 }
 
 // -------------------------
-// FINAL VIDEO PREVIEW
+// FINAL VIDEO
 // -------------------------
 function showFinalVideo(url) {
   let video = document.getElementById("final-video")
@@ -225,53 +228,35 @@ function showFinalVideo(url) {
 }
 
 // -------------------------
-// SHARE BUTTON (FIXED)
+// DOWNLOAD BUTTON (UNIVERSAL FIX)
 // -------------------------
-function attachShareButton(url) {
-  let shareBtn = document.getElementById("share-btn")
+function attachDownloadButton(url) {
+  let btn = document.getElementById("download-btn")
 
-  if (!shareBtn) {
-    shareBtn = document.createElement("button")
-    shareBtn.id = "share-btn"
-    shareBtn.className = "primary"
-    shareBtn.innerText = "Share video"
+  if (!btn) {
+    btn = document.createElement("button")
+    btn.id = "download-btn"
+    btn.className = "primary"
+    btn.innerText = "Download video"
 
-    document.querySelector(".container").appendChild(shareBtn)
+    document.querySelector(".container").appendChild(btn)
   }
 
-  shareBtn.onclick = () => shareVideo(url)
+  btn.onclick = () => downloadVideo(url)
 }
 
 // -------------------------
-// SHARE API
+// FORCE DOWNLOAD (ALL DEVICES)
 // -------------------------
-window.shareVideo = async function (url) {
-  try {
-    if (navigator.share) {
-      await navigator.share({
-        title: "My video",
-        text: "Check this out",
-        url
-      })
-    } else {
-      alert("Sharing not supported, copying link")
-
-      await navigator.clipboard.writeText(url)
-    }
-  } catch (e) {
-    console.log("share cancelled")
-  }
-}
-
-// -------------------------
-// DOWNLOAD (fallback robust)
-// -------------------------
-window.downloadVideo = async function (url) {
+window.downloadVideo = function (url) {
   const a = document.createElement("a")
   a.href = url
   a.download = "talklean.mp4"
   a.target = "_blank"
+
+  document.body.appendChild(a)
   a.click()
+  document.body.removeChild(a)
 }
 
 // -------------------------
