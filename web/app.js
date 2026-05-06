@@ -1,20 +1,11 @@
 const API_URL = "https://video-cleaner-8j64.onrender.com"
 
-const SUPABASE_URL = "https://mgsngnapsfafydspfmnt.supabase.co"
-const SUPABASE_ANON_KEY = "sb_publishable_DGfn4J71yW2U6oY7beHGDg_Wptvc0Wy"
-
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-
-let session = null
 let selectedFiles = []
 
 // -------------------------
 // INIT
 // -------------------------
-window.addEventListener("DOMContentLoaded", async () => {
-  const { data } = await supabaseClient.auth.getSession()
-  session = data.session
-
+window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("fileInput").addEventListener("change", (e) => {
     selectedFiles = selectedFiles.concat([...e.target.files])
     renderPreviews()
@@ -26,14 +17,17 @@ window.addEventListener("DOMContentLoaded", async () => {
 // FILE PICKER
 // -------------------------
 window.openFilePicker = () => {
-  document.getElementById("fileInput")?.click()
+  document.getElementById("fileInput").click()
 }
 
 // -------------------------
-// PREVIEW (SAFARI SAFE)
+// PREVIEW (WITH SCROLL FIX)
 // -------------------------
 function renderPreviews() {
   const container = document.getElementById("preview")
+
+  const scrollY = window.scrollY // ✅ CRITICAL FIX
+
   container.innerHTML = ""
 
   selectedFiles.forEach((file, i) => {
@@ -56,17 +50,19 @@ function renderPreviews() {
 
     container.appendChild(div)
   })
+
+  window.scrollTo(0, scrollY) // ✅ RESTORE POSITION
 }
 
 window.moveUp = (i) => {
   if (i === 0) return
-  [selectedFiles[i-1], selectedFiles[i]] = [selectedFiles[i], selectedFiles[i-1]]
+  ;[selectedFiles[i-1], selectedFiles[i]] = [selectedFiles[i], selectedFiles[i-1]]
   renderPreviews()
 }
 
 window.moveDown = (i) => {
   if (i === selectedFiles.length - 1) return
-  [selectedFiles[i+1], selectedFiles[i]] = [selectedFiles[i], selectedFiles[i+1]]
+  ;[selectedFiles[i+1], selectedFiles[i]] = [selectedFiles[i], selectedFiles[i+1]]
   renderPreviews()
 }
 
@@ -81,17 +77,17 @@ window.removeFile = (i) => {
 window.upload = async () => {
   if (!selectedFiles.length) return alert("No files")
 
+  // ✅ SHOW STATUS + PROGRESS ONLY HERE
+  document.getElementById("status-row").style.display = "flex"
+  document.getElementById("progress-container").style.display = "block"
+
   setLoading(true)
-  showSpinner(true)
 
   const form = new FormData()
-  selectedFiles.forEach(f => form.append("files", f, f.name))
+  selectedFiles.forEach(f => form.append("files", f))
 
   const res = await fetch(`${API_URL}/upload`, {
     method: "POST",
-    headers: {
-      Authorization: session ? `Bearer ${session.access_token}` : ""
-    },
     body: form
   })
 
@@ -99,8 +95,7 @@ window.upload = async () => {
 
   if (!res.ok) {
     setLoading(false)
-    showSpinner(false)
-    alert(data.detail || "upload failed")
+    alert("upload failed")
     return
   }
 
@@ -123,27 +118,18 @@ function poll(jobId) {
 
     if (status === "done") {
       clearInterval(interval)
-
       setLoading(false)
-      showSpinner(false)
 
-      const url = data.output_url
-      showFinal(url)
-      showActions(url)
+      showFinal(data.output_url)
+      showActions(data.output_url)
       hideUploadUI()
     }
 
-    if (status === "failed") {
-      clearInterval(interval)
-      setLoading(false)
-      showSpinner(false)
-      alert("failed")
-    }
   }, 1000)
 }
 
 // -------------------------
-// FINAL VIDEO
+// FINAL
 // -------------------------
 function showFinal(url) {
   const video = document.getElementById("final-video")
@@ -155,9 +141,7 @@ function showFinal(url) {
 // ACTIONS
 // -------------------------
 function showActions(url) {
-  const box = document.getElementById("action-box")
-
-  box.innerHTML = `
+  document.getElementById("action-box").innerHTML = `
     <button class="cta" onclick="downloadVideo('${url}')">Download</button>
     <button class="cta" onclick="shareVideo('${url}')">Share</button>
     <button class="cta" onclick="newVideo()">New</button>
@@ -165,23 +149,22 @@ function showActions(url) {
 }
 
 // -------------------------
-// HIDE UI AFTER DONE
+// HIDE UI
 // -------------------------
 function hideUploadUI() {
   document.getElementById("generate-btn").style.display = "none"
   document.getElementById("fileInput").style.display = "none"
-  document.querySelector("label.file-btn").style.display = "none"
+  document.getElementById("select-btn").style.display = "none"
   document.getElementById("preview").style.display = "none"
 }
 
 // -------------------------
-// DOWNLOAD (REAL FIX)
+// DOWNLOAD
 // -------------------------
 window.downloadVideo = async (url) => {
   try {
     const res = await fetch(url)
     const blob = await res.blob()
-
     const blobUrl = URL.createObjectURL(blob)
 
     const a = document.createElement("a")
@@ -192,39 +175,27 @@ window.downloadVideo = async (url) => {
     a.remove()
 
     URL.revokeObjectURL(blobUrl)
-  } catch (e) {
-    // fallback Safari
-    window.open(url, "_blank")
+  } catch {
+    window.open(url)
   }
 }
 
 // -------------------------
-// SHARE (iOS FIXED BEHAVIOR)
+// SHARE
 // -------------------------
 window.shareVideo = async (url) => {
-  try {
-    if (navigator.share) {
-      await navigator.share({ url })
-    } else {
-      window.open(url, "_blank")
-    }
-  } catch (e) {}
+  if (navigator.share) {
+    await navigator.share({ url })
+  } else {
+    window.open(url)
+  }
 }
 
 // -------------------------
-// RESET
-// -------------------------
 window.newVideo = () => location.reload()
 
-// -------------------------
-// UI HELPERS
-// -------------------------
 function setLoading(state) {
   const btn = document.getElementById("generate-btn")
   btn.disabled = state
   btn.innerText = state ? "Processing..." : "Generate watchable content"
-}
-
-function showSpinner(show) {
-  document.getElementById("spinner").style.display = show ? "block" : "none"
 }
