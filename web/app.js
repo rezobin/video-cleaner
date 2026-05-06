@@ -11,31 +11,18 @@ let selectedFiles = []
 // -------------------------
 // INIT
 // -------------------------
-window.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("fileInput").addEventListener("change", (e) => {
-    selectedFiles = selectedFiles.concat([...e.target.files])
-    renderPreviews()
-    e.target.value = ""
-  })
-})
-
-// -------------------------
-// INIT AUTH
-// -------------------------
 window.addEventListener("DOMContentLoaded", async () => {
   const { data } = await supabaseClient.auth.getSession()
   session = data.session
   syncUI()
 
-  document.getElementById("fileInput").addEventListener("change", (e) => {
+  const fileInput = document.getElementById("fileInput")
+
+  fileInput.addEventListener("change", (e) => {
     selectedFiles = [...selectedFiles, ...Array.from(e.target.files)]
     renderPreviews()
+    e.target.value = ""
   })
-})
-
-supabaseClient.auth.onAuthStateChange((_, sess) => {
-  session = sess
-  syncUI()
 })
 
 // -------------------------
@@ -55,6 +42,9 @@ function syncUI() {
   if (logged) {
     document.getElementById("user-email").innerText = session.user.email
   }
+
+  document.getElementById("user-email").innerText =
+  "Connected as " + session.user.email
 }
 
 // -------------------------
@@ -70,6 +60,8 @@ window.login = async () => {
 
 window.logout = async () => {
   await supabaseClient.auth.signOut()
+  session = null
+  syncUI()
 }
 
 // -------------------------
@@ -136,7 +128,6 @@ window.removeFile = (i) => {
 window.upload = async () => {
   if (!selectedFiles.length) return alert("No files")
 
-  // ✅ SHOW STATUS + PROGRESS ONLY HERE
   document.getElementById("status-row").style.display = "flex"
   document.getElementById("progress-container").style.display = "block"
 
@@ -147,6 +138,9 @@ window.upload = async () => {
 
   const res = await fetch(`${API_URL}/upload`, {
     method: "POST",
+    headers: {
+      Authorization: session ? `Bearer ${session.access_token}` : ""
+    },
     body: form
   })
 
@@ -154,7 +148,13 @@ window.upload = async () => {
 
   if (!res.ok) {
     setLoading(false)
-    alert("upload failed")
+
+    if (data.detail === "GUEST_LIMIT_REACHED") {
+      alert("Limit reached. Please login.")
+      return
+    }
+
+    alert(data.detail || "upload failed")
     return
   }
 
