@@ -26,13 +26,12 @@ window.addEventListener("DOMContentLoaded", async () => {
 })
 
 // -------------------------
-// AUTH STATE CHANGE
+// AUTH STATE
 // -------------------------
 supabaseClient.auth.onAuthStateChange((_, sess) => {
   session = sess
   syncUI()
 
-  // 🔥 débloque bouton après login
   if (sess) {
     const btn = document.getElementById("generate-btn")
     if (btn) btn.disabled = false
@@ -54,11 +53,13 @@ function syncUI() {
   auth.style.display = logged ? "none" : "block"
   userBox.style.display = logged ? "block" : "none"
 
-  if (logged && session.user) {
+  if (logged && session?.user) {
     userEmail.innerText = "Connected as " + session.user.email
   }
 }
 
+// -------------------------
+// LOGIN / LOGOUT
 // -------------------------
 window.login = async () => {
   const email = document.getElementById("email").value
@@ -77,11 +78,11 @@ window.logout = async () => {
 }
 
 // -------------------------
-// LOGIN GATE (🔥 IMPORTANT)
+// LOGIN GATE (UX + conversion)
 // -------------------------
 function showLoginGate() {
   document.getElementById("status").innerText =
-    "Free limit reached — login to continue"
+    "Free limit reached — unlock unlimited videos by logging in"
 
   const auth = document.getElementById("auth-section")
   if (auth) {
@@ -101,7 +102,7 @@ window.openFilePicker = () => {
 }
 
 // -------------------------
-// PREVIEW (WITH SCROLL FIX)
+// PREVIEW
 // -------------------------
 function renderPreviews() {
   const container = document.getElementById("preview")
@@ -133,18 +134,23 @@ function renderPreviews() {
   window.scrollTo(0, scrollY)
 }
 
+// -------------------------
 window.moveUp = (i) => {
   if (i === 0) return
-  ;[selectedFiles[i-1], selectedFiles[i]] = [selectedFiles[i], selectedFiles[i-1]]
+  ;[selectedFiles[i - 1], selectedFiles[i]] =
+    [selectedFiles[i], selectedFiles[i - 1]]
   renderPreviews()
 }
 
+// -------------------------
 window.moveDown = (i) => {
   if (i === selectedFiles.length - 1) return
-  ;[selectedFiles[i+1], selectedFiles[i]] = [selectedFiles[i], selectedFiles[i+1]]
+  ;[selectedFiles[i + 1], selectedFiles[i]] =
+    [selectedFiles[i], selectedFiles[i + 1]]
   renderPreviews()
 }
 
+// -------------------------
 window.removeFile = (i) => {
   selectedFiles.splice(i, 1)
   renderPreviews()
@@ -155,6 +161,20 @@ window.removeFile = (i) => {
 // -------------------------
 window.upload = async () => {
   if (!selectedFiles.length) return alert("No files")
+
+  // 🔥 soft conversion moment BEFORE blocking
+  const guestUsage = parseInt(localStorage.getItem("guest_usage") || "0")
+
+  if (!session && guestUsage >= 1) {
+    showLoginGate()
+    return
+  }
+
+  // warning BEFORE last allowed usage
+  if (!session && guestUsage === 1) {
+    document.getElementById("status").innerText =
+      "Last free video — login to continue for unlimited access"
+  }
 
   document.getElementById("status-row").style.display = "flex"
   document.getElementById("progress-container").style.display = "block"
@@ -178,12 +198,18 @@ window.upload = async () => {
     setLoading(false)
 
     if (data.detail === "GUEST_LIMIT_REACHED") {
-      showLoginGate() // 🔥 REPLACE ALERT
+      showLoginGate()
       return
     }
 
     alert(data.detail || "upload failed")
     return
+  }
+
+  // track guest usage AFTER success
+  if (!session) {
+    const count = parseInt(localStorage.getItem("guest_usage") || "0")
+    localStorage.setItem("guest_usage", count + 1)
   }
 
   poll(data.job_id)
@@ -222,7 +248,7 @@ function poll(jobId) {
 }
 
 // -------------------------
-// FINAL
+// FINAL VIDEO
 // -------------------------
 function showFinal(url) {
   const video = document.getElementById("final-video")
@@ -242,7 +268,7 @@ function showActions(url) {
 }
 
 // -------------------------
-// HIDE UI
+// HIDE UI AFTER DONE
 // -------------------------
 function hideUploadUI() {
   document.getElementById("generate-btn").style.display = "none"
@@ -252,7 +278,7 @@ function hideUploadUI() {
 }
 
 // -------------------------
-// DOWNLOAD
+// DOWNLOAD (robust)
 // -------------------------
 window.downloadVideo = async (url) => {
   try {
@@ -287,6 +313,7 @@ window.shareVideo = async (url) => {
 // -------------------------
 window.newVideo = () => location.reload()
 
+// -------------------------
 function setLoading(state) {
   const btn = document.getElementById("generate-btn")
   btn.disabled = state
