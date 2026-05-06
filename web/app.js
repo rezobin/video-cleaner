@@ -7,7 +7,6 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 let session = null
 let selectedFiles = []
-let isDone = false
 
 // -------------------------
 // INIT
@@ -16,10 +15,8 @@ window.addEventListener("DOMContentLoaded", async () => {
   const { data } = await supabaseClient.auth.getSession()
   session = data.session
 
-  const fileInput = document.getElementById("fileInput")
-
-  fileInput.addEventListener("change", (e) => {
-    selectedFiles = [...selectedFiles, ...Array.from(e.target.files || [])]
+  document.getElementById("fileInput").addEventListener("change", (e) => {
+    selectedFiles = selectedFiles.concat([...e.target.files])
     renderPreviews()
     e.target.value = ""
   })
@@ -33,7 +30,7 @@ window.openFilePicker = () => {
 }
 
 // -------------------------
-// PREVIEW (Safari FIXED)
+// PREVIEW (SAFARI SAFE)
 // -------------------------
 function renderPreviews() {
   const container = document.getElementById("preview")
@@ -47,18 +44,35 @@ function renderPreviews() {
 
     div.innerHTML = `
       <div class="video-wrapper">
-        <video 
-          src="${url}" 
-          muted 
-          playsinline 
-          preload="metadata"
-          controls
-        ></video>
+        <video src="${url}" playsinline muted controls></video>
+      </div>
+
+      <div class="controls">
+        <button onclick="moveUp(${i})">↑</button>
+        <button onclick="moveDown(${i})">↓</button>
+        <button onclick="removeFile(${i})">✕</button>
       </div>
     `
 
     container.appendChild(div)
   })
+}
+
+window.moveUp = (i) => {
+  if (i === 0) return
+  [selectedFiles[i-1], selectedFiles[i]] = [selectedFiles[i], selectedFiles[i-1]]
+  renderPreviews()
+}
+
+window.moveDown = (i) => {
+  if (i === selectedFiles.length - 1) return
+  [selectedFiles[i+1], selectedFiles[i]] = [selectedFiles[i], selectedFiles[i+1]]
+  renderPreviews()
+}
+
+window.removeFile = (i) => {
+  selectedFiles.splice(i, 1)
+  renderPreviews()
 }
 
 // -------------------------
@@ -67,7 +81,8 @@ function renderPreviews() {
 window.upload = async () => {
   if (!selectedFiles.length) return alert("No files")
 
-  setUIUploading(true)
+  setLoading(true)
+  showSpinner(true)
 
   const form = new FormData()
   selectedFiles.forEach(f => form.append("files", f, f.name))
@@ -83,12 +98,12 @@ window.upload = async () => {
   const data = await res.json()
 
   if (!res.ok) {
-    setUIUploading(false)
+    setLoading(false)
+    showSpinner(false)
     alert(data.detail || "upload failed")
     return
   }
 
-  showProgress()
   poll(data.job_id)
 }
 
@@ -109,16 +124,19 @@ function poll(jobId) {
     if (status === "done") {
       clearInterval(interval)
 
-      setUIDone()
+      setLoading(false)
+      showSpinner(false)
 
       const url = data.output_url
       showFinal(url)
       showActions(url)
+      hideUploadUI()
     }
 
     if (status === "failed") {
       clearInterval(interval)
-      setUIUploading(false)
+      setLoading(false)
+      showSpinner(false)
       alert("failed")
     }
   }, 1000)
@@ -140,77 +158,73 @@ function showActions(url) {
   const box = document.getElementById("action-box")
 
   box.innerHTML = `
-    <button class="primary" onclick="downloadVideo('${url}')">Download</button>
-    <button class="primary" onclick="shareVideo('${url}')">Share</button>
-    <button class="primary" onclick="newVideo()">New video</button>
+    <button class="cta" onclick="downloadVideo('${url}')">Download</button>
+    <button class="cta" onclick="shareVideo('${url}')">Share</button>
+    <button class="cta" onclick="newVideo()">New</button>
   `
 }
 
 // -------------------------
-// DOWNLOAD FIX (REAL)
+// HIDE UI AFTER DONE
 // -------------------------
-window.downloadVideo = async (url) => {
-  const res = await fetch(url)
-  const blob = await res.blob()
-
-  const blobUrl = URL.createObjectURL(blob)
-
-  const a = document.createElement("a")
-  a.href = blobUrl
-  a.download = "talklean.mp4"
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-
-  URL.revokeObjectURL(blobUrl)
+function hideUploadUI() {
+  document.getElementById("generate-btn").style.display = "none"
+  document.getElementById("fileInput").style.display = "none"
+  document.querySelector("label.file-btn").style.display = "none"
+  document.getElementById("preview").style.display = "none"
 }
 
 // -------------------------
-// SHARE (REALISTIC LIMIT)
+// DOWNLOAD (REAL FIX)
 // -------------------------
-window.shareVideo = async (url) => {
-  if (navigator.share) {
-    try {
-      await navigator.share({ url })
-    } catch {}
-  } else {
+window.downloadVideo = async (url) => {
+  try {
+    const res = await fetch(url)
+    const blob = await res.blob()
+
+    const blobUrl = URL.createObjectURL(blob)
+
+    const a = document.createElement("a")
+    a.href = blobUrl
+    a.download = "talklean.mp4"
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+
+    URL.revokeObjectURL(blobUrl)
+  } catch (e) {
+    // fallback Safari
     window.open(url, "_blank")
   }
 }
 
 // -------------------------
-// NEW PROJECT
+// SHARE (iOS FIXED BEHAVIOR)
+// -------------------------
+window.shareVideo = async (url) => {
+  try {
+    if (navigator.share) {
+      await navigator.share({ url })
+    } else {
+      window.open(url, "_blank")
+    }
+  } catch (e) {}
+}
+
+// -------------------------
+// RESET
 // -------------------------
 window.newVideo = () => location.reload()
 
 // -------------------------
-// UI STATES
+// UI HELPERS
 // -------------------------
-function setUIUploading(state) {
+function setLoading(state) {
   const btn = document.getElementById("generate-btn")
-  const select = document.getElementById("fileInput")
-  const label = document.querySelector(".file-btn")
-
-  if (state) {
-    btn.disabled = true
-    btn.innerText = "Processing..."
-    document.getElementById("progress-container").style.display = "block"
-  } else {
-    btn.disabled = false
-    btn.innerText = "Generate watchable content"
-  }
+  btn.disabled = state
+  btn.innerText = state ? "Processing..." : "Generate watchable content"
 }
 
-function setUIDone() {
-  isDone = true
-
-  document.getElementById("generate-btn").style.display = "none"
-  document.querySelector(".file-btn").style.display = "none"
-  document.getElementById("preview").style.display = "none"
-  document.getElementById("progress-container").style.display = "none"
-  document.getElementById("spinner").style.display = "none"
-}
-
-function showProgress() {
-  document.getElementById("progress-container").style.display = "block"
+function showSpinner(show) {
+  document.getElementById("spinner").style.display = show ? "block" : "none"
 }
