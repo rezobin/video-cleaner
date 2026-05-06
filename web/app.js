@@ -1,5 +1,11 @@
 const API_URL = "https://video-cleaner-8j64.onrender.com"
 
+const SUPABASE_URL = "https://mgsngnapsfafydspfmnt.supabase.co"
+const SUPABASE_ANON_KEY = "sb_publishable_DGfn4J71yW2U6oY7beHGDg_Wptvc0Wy"
+
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+
+let session = null
 let selectedFiles = []
 
 // -------------------------
