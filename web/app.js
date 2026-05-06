@@ -48,13 +48,15 @@ function syncUI() {
 
   if (!auth || !userBox || !userEmail) return
 
-  const logged = !!session
+  const logged = !!session && !!session.user
 
   auth.style.display = logged ? "none" : "block"
   userBox.style.display = logged ? "block" : "none"
 
-  if (logged && session?.user) {
-    userEmail.innerText = "Connected as " + session.user.email
+  if (logged) {
+    userEmail.innerText = `Connected as ${session.user.email}`
+  } else {
+    userEmail.innerText = ""
   }
 }
 
@@ -230,12 +232,19 @@ function poll(jobId) {
     document.getElementById("progress-bar").style.width = progress + "%"
 
     if (status === "done") {
-      clearInterval(interval)
-      setLoading(false)
+    clearInterval(interval)
+    setLoading(false)
 
-      showFinal(data.output_url)
-      showActions(data.output_url)
-      hideUploadUI()
+    // STOP UI LOADING VISUALLY
+    const spinner = document.getElementById("spinner")
+    if (spinner) spinner.style.display = "none"
+
+    const hero = document.getElementById("hero")
+    if (hero) hero.style.display = "none"
+
+    showFinal(data.output_url)
+    showActions(data.output_url)
+    hideUploadUI()
     }
 
     if (status === "failed") {
@@ -316,6 +325,16 @@ window.newVideo = () => location.reload()
 // -------------------------
 function setLoading(state) {
   const btn = document.getElementById("generate-btn")
-  btn.disabled = state
-  btn.innerText = state ? "Processing..." : "Generate watchable content"
+
+  const spinner = document.getElementById("spinner")
+
+  if (state) {
+    btn.disabled = true
+    btn.innerText = "Processing..."
+    if (spinner) spinner.style.display = "block"
+  } else {
+    btn.disabled = false
+    btn.innerText = "Generate watchable content"
+    if (spinner) spinner.style.display = "none"
+  }
 }
