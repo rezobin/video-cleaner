@@ -9,13 +9,22 @@ let session = null
 let selectedFiles = []
 
 
+let lastLoginAttempt = 0
+
 window.login = async function () {
   const email = document.getElementById("email").value
 
-  if (!email) {
-    alert("Enter email")
+  if (!email) return alert("Enter email")
+
+  const now = Date.now()
+
+  // anti spam (30s)
+  if (now - lastLoginAttempt < 30000) {
+    alert("Wait before retrying")
     return
   }
+
+  lastLoginAttempt = now
 
   const { error } = await supabaseClient.auth.signInWithOtp({
     email
@@ -26,7 +35,7 @@ window.login = async function () {
     return
   }
 
-  alert("Check your email to login")
+  alert("Check your email")
 }
 
 window.logout = async function () {
@@ -213,23 +222,7 @@ function poll(jobId) {
   }, 1000)
 }
 
-// email 
-window.login = async function () {
-  const email = document.getElementById("email").value
 
-  if (!email) return alert("Enter email")
-
-  const { error } = await supabaseClient.auth.signInWithOtp({
-    email
-  })
-
-  if (error) {
-    alert(error.message)
-    return
-  }
-
-  alert("Check your email")
-}
 
 
 function updateUserUI() {
