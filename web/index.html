@@ -41,6 +41,7 @@
 
     .brand {
       font-weight: 800;
+      font-size: 24px;
       color: var(--coral);
     }
 
@@ -56,7 +57,7 @@
     }
 
     .hero { margin: 20px 0; }
-    .hero h1 { font-size: 22px; }
+    .hero h1 { font-size: 32px; }
     .hero p { color: var(--muted); margin: 4px 0; }
 
     input[type="file"] { display: none; }
@@ -196,7 +197,16 @@
 
     .auth-row input {
       flex: 1;
-      padding: 10px;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px; /* match bouton */
+      font-size: 18px; /* +4px environ */
+      outline: none;
+    }
+
+    .auth-row input::placeholder {
+      font-size: 18px;
+      color: var(--muted);
     }
   </style>
 </head>
@@ -215,7 +225,7 @@
 
   <!-- HERO -->
   <div class="hero" id="hero">
-    <h1>Transform your raw videos</h1>
+    <h1>Transform raw talking videos into watchable content</h1>
     <p>No editing required</p>
     <p>No weird AI</p>
     <p>Just you, with the right pacing</p>
@@ -246,7 +256,7 @@
   <div id="auth-section" class="auth-section">
     <div class="auth-row">
       <input id="email" type="email" placeholder="Enter email">
-      <button onclick="login()">Login</button>
+      <button onclick="login()">Login/Sign-up</button>
     </div>
 
     <div id="user-info" style="display:none">

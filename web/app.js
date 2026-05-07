@@ -200,8 +200,13 @@ window.upload = async () => {
     setLoading(false)
 
     if (data.detail === "GUEST_LIMIT_REACHED") {
-      showLoginGate()
-      return
+    showLoginGate()
+    return
+    }
+
+    if (data.detail === "PAYWALL_REQUIRED") {
+    showPricing()
+    return
     }
 
     alert(data.detail || "upload failed")
@@ -337,4 +342,49 @@ function setLoading(state) {
     btn.innerText = "Generate watchable content"
     if (spinner) spinner.style.display = "none"
   }
+}
+
+
+//PRICING
+
+function showPricing() {
+
+  document.getElementById("action-box").innerHTML = `
+  
+    <div style="
+      border:1px solid #e5e7eb;
+      border-radius:16px;
+      padding:20px;
+      text-align:center;
+      margin-top:20px;
+    ">
+
+      <h2>Unlock unlimited videos</h2>
+
+      <p>Create unlimited clean talking clips.</p>
+
+      <div style="margin-top:20px;">
+        <button class="cta" onclick="buyMonthly()">
+          Monthly — 19€
+        </button>
+      </div>
+
+    </div>
+  `
+}
+
+//BUY
+window.buyMonthly = async () => {
+
+  const res = await fetch(`${API_URL}/create-checkout-session`, {
+    method: "POST",
+
+    headers: {
+      Authorization: `Bearer ${session.access_token}`
+    }
+  })
+
+  const data = await res.json()
+
+  window.location.href = data.url
 }

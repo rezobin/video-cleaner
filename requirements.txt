@@ -8,3 +8,4 @@ python-multipart
 cryptography
 redis==5.0.4
 hiredis==2.3.2
+stripe

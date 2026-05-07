@@ -11,6 +11,11 @@ from app.supabase_client import supabase
 from app.job_queue import push_job
 from app.auth import ensure_user
 
+import stripe
+from fastapi.responses import JSONResponse
+
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+
 app = FastAPI()
 
 app.add_middleware(
@@ -29,6 +34,7 @@ app.add_middleware(
 r = redis.from_url(os.getenv("REDIS_URL"), decode_responses=True)
 
 GUEST_LIMIT = 2
+FREE_USER_LIMIT = 5
 USER_LIMIT = 50
 
 
@@ -99,6 +105,42 @@ def upload(request: Request, files: list[UploadFile] = File(...)):
             )
         incr_guest(ip)
 
+
+    # -------------------------
+    # FREE USER LIMIT
+    # -------------------------
+    if user:
+
+        db_user = supabase.table("users") \
+            .select("plan, upload_count") \
+            .eq("id", user["sub"]) \
+            .single() \
+            .execute()
+
+        db_user = db_user.data
+
+        is_premium = db_user.get("plan") == "monthly"
+
+        if not is_premium:
+
+            uploads = db_user.get("upload_count", 0)
+
+            if uploads >= FREE_USER_LIMIT:
+                raise HTTPException(
+                    status_code=403,
+                    detail="PAYWALL_REQUIRED"
+                )
+
+            supabase.table("users") \
+                .update({
+                    "upload_count": uploads + 1
+                }) \
+                .eq("id", user["sub"]) \
+                .execute()
+
+
+
+
     job_id = str(uuid.uuid4())
     inputs = []
 
@@ -153,3 +195,80 @@ def status(job_id: str):
         "progress": int(data.get("progress", 0)),
         "output_url": data.get("output_url")
     }
+
+
+
+@app.post("/create-checkout-session")
+async def create_checkout_session(request: Request):
+
+    user = get_user_optional(request)
+
+    if not user:
+        raise HTTPException(status_code=401)
+
+    session = stripe.checkout.Session.create(
+
+        payment_method_types=["card"],
+
+        mode="subscription",
+
+        line_items=[{
+            "price": os.getenv("STRIPE_MONTHLY_PRICE_ID"),
+            "quantity": 1
+        }],
+
+        success_url=f"{os.getenv('FRONTEND_URL')}?success=true",
+
+        cancel_url=f"{os.getenv('FRONTEND_URL')}?canceled=true",
+
+        customer_email=user["email"],
+
+        client_reference_id=user["sub"]
+    )
+
+    return JSONResponse({
+        "url": session.url
+    })
+
+
+# -------------------------
+# STRIPE WEBHOOK
+# -------------------------
+
+@app.post("/stripe/webhook")
+async def stripe_webhook(request: Request):
+
+    payload = await request.body()
+
+    sig_header = request.headers.get("stripe-signature")
+
+    event = stripe.Webhook.construct_event(
+        payload,
+        sig_header,
+        os.getenv("STRIPE_WEBHOOK_SECRET")
+    )
+
+    # -------------------------
+    # PAYMENT SUCCESS
+    # -------------------------
+    if event["type"] == "checkout.session.completed":
+
+        session_data = event["data"]["object"]
+
+        user_id = session_data["client_reference_id"]
+
+        customer_id = session_data["customer"]
+
+        subscription_id = session_data["subscription"]
+
+        supabase.table("users") \
+            .update({
+                "plan": "monthly",
+                "subscription_status": "active",
+                "stripe_customer_id": customer_id,
+                "stripe_subscription_id": subscription_id
+            }) \
+            .eq("id", user_id) \
+            .execute()
+
+    return {"ok": True}
